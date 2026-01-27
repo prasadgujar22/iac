@@ -1,0 +1,12 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!example.tfvars   # Allow example files
+secret.auto.tfvars
+
+# Packer
+packer_cache/
+*.pkrvars.hcl

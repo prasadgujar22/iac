@@ -1,0 +1,28 @@
+# Basic AlmaLinux Kickstart
+text
+cdrom
+# Ensure the installer doesn't try to look for updates online during install
+firstboot --disable
+eula --agreed
+lang en_US.UTF-8
+keyboard us
+timezone UTC
+rootpw --plaintext packer
+user --name=packer --groups=wheel --plaintext --password=packer
+reboot
+
+# Partitioning
+zerombr
+clearpart --all --initlabel
+autopart
+
+%packages
+@^minimal-environment
+kexec-tools
+qemu-guest-agent
+%end
+
+%post
+# Allow packer user to sudo without password
+echo "packer ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/packer
+%end

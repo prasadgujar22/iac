@@ -1,0 +1,63 @@
+# AlmaLinux 9.x Kickstart for Proxmox Template
+# ------------------------------------------
+
+# Use local CD-ROM/DVD as the installation source
+cdrom
+
+# Use text-based installer for speed and compatibility
+text
+
+# Keyboard and Language settings
+keyboard --vckeymap=us --layout=us
+lang en_US.UTF-8
+
+# Network configuration
+# Initializes the first network interface (ens18 or eth0) via DHCP
+network --bootproto=dhcp --device=link --activate --onboot=on
+
+# Root password (Required)
+rootpw --plaintext packer
+
+# Create a 'packer' user for SSH provisioning
+user --name=packer --groups=wheel --plaintext --password=packer
+
+# System Services
+selinux --enforcing
+firewall --enabled --service=ssh
+timezone UTC --utc
+
+# --- DISK PARTITIONING (THE FIX) ---
+# 1. Clear any existing partition table
+zerombr
+# 2. Remove all existing partitions
+clearpart --all --initlabel
+# 3. Automatically create LVM partitions (/, /boot, and swap)
+autopart --type=lvm
+
+# Agree to the EULA and disable the first-boot setup wizard
+firstboot --disable
+eula --agreed
+
+# Ensure the VM reboots automatically after installation is finished
+reboot
+
+# Post-installation script
+%post --log=/var/log/anaconda/post-install.log
+# Ensure the packer user can sudo without a password
+echo "packer ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/packer
+chmod 440 /etc/sudoers.d/packer
+
+# Install and enable the QEMU Guest Agent (critical for Proxmox)
+dnf install -y qemu-guest-agent
+systemctl enable qemu-guest-agent
+%end
+
+# Package selection (Minimal install)
+%packages
+@^minimal-environment
+kexec-tools
+qemu-guest-agent
+# Avoid installing firmware for physical hardware to keep image small
+-iwl*
+-ipw*
+%end
