@@ -1,0 +1,68 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US
+  keyboard:
+    layout: us
+  identity:
+    hostname: ubuntu-server
+    username: ubuntu
+    password: "$6$HMOrSC2BH4JIpsYr$gqCxwik9eP/ZWBQzvPi11HOSsi2bT7xrWd.FA5405gN.x5G9OWqcSVy6yAqHEmUl6A./3n.tjdfJAmRbMQ0CV"
+  ssh:
+    install-server: true
+    allow-pw: true
+    ssh_quiet_keygen: true
+  network:
+    network:
+      version: 2
+      ethernets:
+        any:
+          match:
+            name: en*
+          dhcp4: true
+          dhcp6: false
+  packages:
+    - qemu-guest-agent
+    - sudo
+    - openssh-server
+    - net-tools
+    - perl
+    - open-iscsi
+    - curl
+    - vim
+    - ifupdown
+    - zip
+    - unzip
+    - gnupg2
+    - software-properties-common
+    - apt-transport-https
+    - ca-certificates
+    - lsb-release
+    - python3-pip
+    - jq
+    - cloud-init
+  storage:
+    layout:
+      name: direct
+    swap:
+      size: 0
+  user-data:
+    package_upgrade: false
+    timezone: UTC
+    disable_root: false
+  late-commands:
+    - echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/ubuntu
+    - chmod 440 /target/etc/sudoers.d/ubuntu
+    - curtin in-target -- systemctl enable qemu-guest-agent
+    - curtin in-target -- systemctl start qemu-guest-agent
+
+    - curtin in-target -- sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+    - curtin in-target -- sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+    - curtin in-target -- systemctl restart ssh
+    - |
+      if [ -d /sys/firmware/efi ]; then
+        apt-get install -y efibootmgr
+        efibootmgr -o $(efibootmgr | perl -n -e '/Boot(.+)\* Ubuntu/ && print $1')
+      fi
+  # Force non-interactive installation
+  interactive-sections: [] 
