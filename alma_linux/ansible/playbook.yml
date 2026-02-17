@@ -1,0 +1,4 @@
+- hosts: weblogic
+  become: true
+  roles:
+    - weblogic

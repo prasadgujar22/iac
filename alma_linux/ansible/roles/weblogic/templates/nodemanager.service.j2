@@ -1,0 +1,16 @@
+[Unit]
+Description=WebLogic Node Manager
+After=network.target
+
+[Service]
+Type=simple
+User={{ weblogic_user }}
+Group={{ weblogic_group }}
+Environment=JAVA_HOME={{ java_home }}
+Environment=WL_HOME={{ weblogic_home }}/wlserver
+ExecStart={{ weblogic_home }}/oracle_common/common/bin/startNodeManager.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
