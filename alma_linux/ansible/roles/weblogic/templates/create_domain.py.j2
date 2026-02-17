@@ -1,0 +1,42 @@
+# WLST script to create a simple domain
+from java.io import FileInputStream
+from java.util import Properties
+
+# Variables passed via template
+adminUser='{{ weblogic_admin_username }}'
+adminPass='{{ weblogic_admin_password }}'
+domainName='{{ domain_name }}'
+domainDir='{{ domain_dir }}'
+adminHost='{{ admin_host }}'
+adminPort={{ admin_listen_port }}
+
+print('Creating domain: ' + domainName)
+readTemplate('{{ weblogic_home }}/wlserver/common/templates/wls/wls.jar')
+
+# The recommended approach is to use the configuration templates shipped with WebLogic.
+try:
+    cd('/Servers')
+except:
+    pass
+
+selectTemplate('WLS')
+loadTemplates()
+
+cd('/Security/base_domain/User/weblogic')
+set('Name', adminUser)
+
+create(domainName, 'Domain')
+cd('/Domain')
+set('Name', domainName)
+
+# Set admin server
+cd('/Servers')
+create('AdminServer','Server')
+cd('/Servers/AdminServer')
+set('ListenAddress', adminHost)
+set('ListenPort', adminPort)
+
+# Write the domain
+writeDomain(domainDir)
+closeTemplate()
+print('Domain created at: ' + domainDir)

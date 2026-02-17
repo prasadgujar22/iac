@@ -1,0 +1,15 @@
+---
+# Role default vars (can be overridden in group_vars/all.yml)
+weblogic_user: oracle
+weblogic_group: oinstall
+weblogic_home: /opt/oracle/middleware
+weblogic_installer_source: "/tmp/fmw_14.1.2.0.0_wls.jar"
+java_package: openjdk-11-jdk
+java_home: /usr/lib/jvm/java-11-openjdk-amd64
+domain_name: base_domain
+domain_dir: "{{ weblogic_home }}/user_projects/domains/{{ domain_name }}"
+weblogic_admin_username: weblogic
+weblogic_admin_password: ChangeMe123!
+admin_listen_port: 7001
+admin_host: 0.0.0.0
+node_manager_port: 5556

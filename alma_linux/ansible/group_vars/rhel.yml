@@ -1,0 +1,3 @@
+# RHEL/CentOS/OracleLinux specific vars
+java_package: java-11-openjdk-devel
+java_home: /usr/lib/jvm/java-11-openjdk

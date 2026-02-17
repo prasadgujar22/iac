@@ -1,0 +1,16 @@
+[Unit]
+Description=WebLogic Admin Server
+After=network.target
+
+[Service]
+Type=simple
+User={{ weblogic_user }}
+Group={{ weblogic_group }}
+Environment=JAVA_HOME={{ java_home }}
+Environment=MW_HOME={{ weblogic_home }}
+ExecStart={{ weblogic_home }}/user_projects/domains/{{ domain_name }}/startWebLogic.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

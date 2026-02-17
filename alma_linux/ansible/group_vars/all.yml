@@ -1,0 +1,16 @@
+# Variables for weblogic role — edit before running
+weblogic_user: oracle
+weblogic_group: oinstall
+weblogic_home: /opt/oracle/middleware
+weblogic_installer_source: "/tmp/fmw_14.1.2.0.0_wls.jar"  # local path or http(s) URL
+java_package: openjdk-11-jdk    # Debian/Ubuntu name; change to e.g. java-11-openjdk-devel for RHEL
+java_home: /usr/lib/jvm/java-11-openjdk-amd64
+weblogic_install_response: "{{ weblogic_home }}/install/install.rsp"
+weblogic_installation_dir: "{{ weblogic_home }}"
+weblogic_admin_username: "weblogic"
+weblogic_admin_password: "ChangeMe123!"   # use ansible-vault in production
+domain_name: "base_domain"
+domain_dir: "{{ weblogic_home }}/user_projects/domains/{{ domain_name }}"
+admin_listen_port: 7001
+admin_host: 0.0.0.0
+node_manager_port: 5556

@@ -1,0 +1,106 @@
+---
+- name: Ensure group exists
+  group:
+    name: "{{ weblogic_group }}"
+    state: present
+
+- name: Ensure user exists
+  user:
+    name: "{{ weblogic_user }}"
+    group: "{{ weblogic_group }}"
+    create_home: yes
+    shell: /bin/bash
+
+- name: Install OS packages (Debian/Ubuntu example)
+  apt:
+    name:
+      - unzip
+      - wget
+      - curl
+      - {{ java_package }}
+    update_cache: yes
+  when: ansible_os_family == 'Debian'
+
+- name: Install OS packages (RedHat/CentOS/OracleLinux)
+  yum:
+    name:
+      - unzip
+      - wget
+      - curl
+      - java-11-openjdk-devel
+    state: present
+  when: ansible_os_family == 'RedHat'
+
+- name: Create installation directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ weblogic_user }}"
+    group: "{{ weblogic_group }}"
+    mode: '0755'
+  loop:
+    - "{{ weblogic_installation_dir }}"
+    - "{{ weblogic_installation_dir }}/install"
+    - "{{ domain_dir }}"
+
+- name: Copy installer JAR to target (if local file provided)
+  copy:
+    src: "{{ weblogic_installer_source }}"
+    dest: "/tmp/weblogic_installer.jar"
+    owner: "{{ weblogic_user }}"
+    mode: '0644'
+  when: weblogic_installer_source is search('^/')
+
+- name: Download installer JAR (if URL provided)
+  get_url:
+    url: "{{ weblogic_installer_source }}"
+    dest: /tmp/weblogic_installer.jar
+    owner: "{{ weblogic_user }}"
+    mode: '0644'
+  when: weblogic_installer_source is search('^https?://')
+
+- name: Render installer response file
+  template:
+    src: install.rsp.j2
+    dest: "{{ weblogic_install_response }}"
+    owner: "{{ weblogic_user }}"
+    mode: '0644'
+
+- name: Run WebLogic silent installer
+  become_user: "{{ weblogic_user }}"
+  shell: |
+    set -e
+    export JAVA_HOME={{ java_home }}
+    java -jar /tmp/weblogic_installer.jar -silent -responseFile {{ weblogic_install_response }} -invPtrLoc /tmp/oraInst.loc
+  args:
+    creates: "{{ weblogic_home }}/wlserver"
+  environment:
+    ORACLE_HOME: "{{ weblogic_home }}"
+
+- name: Ensure WL_HOME variable set
+  set_fact:
+    wl_home: "{{ weblogic_home }}/wlserver"
+
+- name: Render WLST domain creation script
+  template:
+    src: create_domain.py.j2
+    dest: "{{ weblogic_installation_dir }}/install/create_domain.py"
+    owner: "{{ weblogic_user }}"
+    mode: '0644'
+
+- name: Create domain using WLST
+  become_user: "{{ weblogic_user }}"
+  shell: |
+    set -e
+    export JAVA_HOME={{ java_home }}
+    WLST={{ weblogic_home }}/oracle_common/common/bin/wlst.sh
+    "${WLST}" {{ weblogic_installation_dir }}/install/create_domain.py
+  args:
+    creates: "{{ domain_dir }}/config/config.xml"
+
+- name: Set permissions on domain
+  file:
+    path: "{{ domain_dir }}"
+    owner: "{{ weblogic_user }}"
+    group: "{{ weblogic_group }}"
+    recurse: yes
