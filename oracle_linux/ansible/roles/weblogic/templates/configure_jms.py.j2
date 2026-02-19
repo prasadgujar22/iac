@@ -6,41 +6,63 @@
 
 import sys
 
+def absent(mbean_path):
+    """Return True when the MBean does not yet exist (pending or activated)."""
+    return getMBean(mbean_path) is None
+
 print("=== Connecting to Admin Server ===")
 connect('{{ wls_admin_user }}', '{{ wls_admin_password }}',
         't3://{{ admin_server_host }}:{{ admin_server_port }}')
 
+# Enter the edit tree, then discard any stale in-progress session left behind
+# by a previous failed run.  cancelEdit('y') is a no-op when there is nothing
+# pending, so this is always safe.
 edit()
+try:
+    cancelEdit('y')
+except WLSTException:
+    pass  # no stale session – perfectly fine
+
 startEdit()
 
 # ---- JMS Server (one per managed server) -----------------------------------
 {% for ms in managed_servers %}
-print("Creating JMS Server for {{ ms.name }}")
-cd('/')
-create('JMSServer-{{ ms.name }}', 'JMSServer')
+if absent('/JMSServers/JMSServer-{{ ms.name }}'):
+    print("Creating JMS Server for {{ ms.name }}")
+    cd('/')
+    create('JMSServer-{{ ms.name }}', 'JMSServer')
+else:
+    print("JMS Server JMSServer-{{ ms.name }} already exists, skipping")
 cd('/JMSServers/JMSServer-{{ ms.name }}')
 set('Targets', jarray.array([ObjectName('com.bea:Name={{ ms.name }},Type=Server')], ObjectName))
 {% endfor %}
 
 # ---- JMS Module ------------------------------------------------------------
-print("Creating JMS Module: {{ jms_module_name }}")
-cd('/')
-create('{{ jms_module_name }}', 'JMSSystemResource')
+if absent('/JMSSystemResources/{{ jms_module_name }}'):
+    print("Creating JMS Module: {{ jms_module_name }}")
+    cd('/')
+    create('{{ jms_module_name }}', 'JMSSystemResource')
+else:
+    print("JMS Module {{ jms_module_name }} already exists, skipping")
 cd('/JMSSystemResources/{{ jms_module_name }}')
 set('Targets', jarray.array([ObjectName('com.bea:Name={{ cluster_name }},Type=Cluster')], ObjectName))
 
 # ---- SubDeployment for Connection Factory (targets Cluster) ----------------
 # A CF must be available on every cluster member, so it targets the Cluster.
-cd('/JMSSystemResources/{{ jms_module_name }}')
-create('{{ jms_subdeployment_name }}-CF', 'SubDeployment')
+if absent('/JMSSystemResources/{{ jms_module_name }}/SubDeployments/{{ jms_subdeployment_name }}-CF'):
+    print("Creating SubDeployment {{ jms_subdeployment_name }}-CF")
+    cd('/JMSSystemResources/{{ jms_module_name }}')
+    create('{{ jms_subdeployment_name }}-CF', 'SubDeployment')
 cd('/JMSSystemResources/{{ jms_module_name }}/SubDeployments/{{ jms_subdeployment_name }}-CF')
 set('Targets', jarray.array([ObjectName('com.bea:Name={{ cluster_name }},Type=Cluster')], ObjectName))
 
 # ---- SubDeployment for Uniform Distributed Queue (targets all JMS Servers) -
 # A UniformDistributedQueue subdeployment may target multiple JMS Servers;
 # plain Queue/Topic subdeployments may not.
-cd('/JMSSystemResources/{{ jms_module_name }}')
-create('{{ jms_subdeployment_name }}', 'SubDeployment')
+if absent('/JMSSystemResources/{{ jms_module_name }}/SubDeployments/{{ jms_subdeployment_name }}'):
+    print("Creating SubDeployment {{ jms_subdeployment_name }}")
+    cd('/JMSSystemResources/{{ jms_module_name }}')
+    create('{{ jms_subdeployment_name }}', 'SubDeployment')
 cd('/JMSSystemResources/{{ jms_module_name }}/SubDeployments/{{ jms_subdeployment_name }}')
 set('Targets', jarray.array([
 {% for ms in managed_servers %}
@@ -49,18 +71,20 @@ set('Targets', jarray.array([
 ], ObjectName))
 
 # ---- Connection Factory ----------------------------------------------------
-print("Creating Connection Factory")
-cd('/JMSSystemResources/{{ jms_module_name }}/JMSResource/{{ jms_module_name }}')
-create('{{ jms_connection_factory_jndi | replace("/", "_") }}', 'ConnectionFactory')
+if absent('/JMSSystemResources/{{ jms_module_name }}/JMSResource/{{ jms_module_name }}/ConnectionFactories/{{ jms_connection_factory_jndi | replace("/", "_") }}'):
+    print("Creating Connection Factory")
+    cd('/JMSSystemResources/{{ jms_module_name }}/JMSResource/{{ jms_module_name }}')
+    create('{{ jms_connection_factory_jndi | replace("/", "_") }}', 'ConnectionFactory')
 cd('/JMSSystemResources/{{ jms_module_name }}/JMSResource/{{ jms_module_name }}/ConnectionFactories/{{ jms_connection_factory_jndi | replace("/", "_") }}')
 set('JNDIName', '{{ jms_connection_factory_jndi }}')
 set('SubDeploymentName', '{{ jms_subdeployment_name }}-CF')
 
 # ---- Uniform Distributed Queue ---------------------------------------------
 # UDQ spans all targeted JMS Servers so the queue is HA across the cluster.
-print("Creating Uniform Distributed Queue: {{ jms_queue_name }}")
-cd('/JMSSystemResources/{{ jms_module_name }}/JMSResource/{{ jms_module_name }}')
-create('{{ jms_queue_name }}', 'UniformDistributedQueue')
+if absent('/JMSSystemResources/{{ jms_module_name }}/JMSResource/{{ jms_module_name }}/UniformDistributedQueues/{{ jms_queue_name }}'):
+    print("Creating Uniform Distributed Queue: {{ jms_queue_name }}")
+    cd('/JMSSystemResources/{{ jms_module_name }}/JMSResource/{{ jms_module_name }}')
+    create('{{ jms_queue_name }}', 'UniformDistributedQueue')
 cd('/JMSSystemResources/{{ jms_module_name }}/JMSResource/{{ jms_module_name }}/UniformDistributedQueues/{{ jms_queue_name }}')
 set('JNDIName', '{{ jms_queue_jndi }}')
 set('SubDeploymentName', '{{ jms_subdeployment_name }}')
