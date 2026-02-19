@@ -3,6 +3,9 @@
 *.vaultpass
 
 # Installer media (too large for git)
+files/*.zip
+files/*.jar
+files/*.rpm
 roles/*/files/*.zip
 roles/*/files/*.jar
 roles/*/files/*.rpm

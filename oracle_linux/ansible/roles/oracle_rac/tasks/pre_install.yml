@@ -128,17 +128,47 @@
   loop: "{{ groups['rac_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
   ignore_errors: true
 
-- name: Copy Oracle GI installer zip to staging area
+- name: Verify Oracle GI zip exists on control node
+  delegate_to: localhost
+  become: false
+  stat:
+    path: "{{ local_installer_src }}/{{ oracle_gi_zip }}"
+  register: gi_zip_stat
+
+- name: Fail if Oracle GI zip is missing
+  fail:
+    msg: >
+      Oracle GI installer not found at {{ local_installer_src }}/{{ oracle_gi_zip }}
+      on the Ansible control node. Place the file there or override
+      local_installer_src with -e local_installer_src=/path/to/media
+  when: not gi_zip_stat.stat.exists
+
+- name: Verify Oracle DB zip exists on control node
+  delegate_to: localhost
+  become: false
+  stat:
+    path: "{{ local_installer_src }}/{{ oracle_db_zip }}"
+  register: db_zip_stat
+
+- name: Fail if Oracle DB zip is missing
+  fail:
+    msg: >
+      Oracle DB installer not found at {{ local_installer_src }}/{{ oracle_db_zip }}
+      on the Ansible control node. Place the file there or override
+      local_installer_src with -e local_installer_src=/path/to/media
+  when: not db_zip_stat.stat.exists
+
+- name: Copy Oracle GI installer zip to staging area on remote
   copy:
-    src: "{{ oracle_gi_zip }}"
+    src: "{{ local_installer_src }}/{{ oracle_gi_zip }}"
     dest: "{{ installer_stage }}/{{ oracle_gi_zip }}"
     owner: "{{ grid_user }}"
     group: "{{ oracle_group }}"
     mode: '0644'
 
-- name: Copy Oracle DB installer zip to staging area
+- name: Copy Oracle DB installer zip to staging area on remote
   copy:
-    src: "{{ oracle_db_zip }}"
+    src: "{{ local_installer_src }}/{{ oracle_db_zip }}"
     dest: "{{ installer_stage }}/{{ oracle_db_zip }}"
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"

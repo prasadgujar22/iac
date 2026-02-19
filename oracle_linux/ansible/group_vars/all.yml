@@ -26,10 +26,15 @@ oracle_base: /u01/app/oracle
 grid_base: /u01/app/grid
 oracle_inventory: /u01/app/oraInventory
 
-# --- Installer staging area (copy your zip files here before running) ---
-installer_stage: /home/prasad/iac/oracle_linux/ansible/roles/common/files
+# --- Installer source on the Ansible CONTROL NODE ---
+# Place all installer media in this directory before running playbooks.
+# Override with: ansible-playbook ... -e local_installer_src=/path/to/media
+local_installer_src: "{{ playbook_dir }}/files"
 
-# --- Software install media (place these on the control node or an NFS share) ---
+# --- Installer staging area on the REMOTE hosts ---
+installer_stage: /opt/oracle/stage
+
+# --- Software install media filenames ---
 # Download from Oracle eDelivery / MOS before running playbooks
 oracle_gi_zip: LINUX.X64_193000_grid_home.zip       # Oracle GI 19c
 oracle_db_zip: LINUX.X64_193000_db_home.zip          # Oracle DB 19c
