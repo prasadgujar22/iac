@@ -8,6 +8,11 @@ User={{ oracle_user }}
 Group={{ oracle_group }}
 Environment=JAVA_HOME={{ jdk_home }}
 Environment=MW_HOME={{ mw_home }}
+Environment=WL_HOME={{ wls_home }}
+# NODEMGR_HOME tells startNodeManager.sh where to read nodemanager.properties.
+# Without it the script falls back to $WL_HOME/common/nodemanager/ and ignores
+# the domain-specific properties file we generated.
+Environment=NODEMGR_HOME={{ domain_home }}/nodemanager
 WorkingDirectory={{ domain_home }}/nodemanager
 ExecStart={{ wls_home }}/server/bin/startNodeManager.sh
 Restart=on-failure
