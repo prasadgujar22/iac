@@ -4,6 +4,17 @@
 # Enroll managed servers in the domain and start them via Node Manager
 # =============================================================================
 
+# The full domain tree (including bin/) is only created on the admin node by
+# domain_create.yml.  Managed nodes need the bin/ directory to exist before
+# the start script template can be deployed.
+- name: Create domain bin directory on managed nodes
+  file:
+    path: "{{ domain_home }}/bin"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0750'
+
 - name: Create managed server start script
   template:
     src: startManagedWebLogic.sh.j2
