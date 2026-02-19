@@ -27,6 +27,24 @@
     group: "{{ oracle_group }}"
     mode: '0644'
 
+- name: Create Oracle inventory directory
+  file:
+    path: "{{ oracle_inventory }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+
+- name: Create oraInst.loc pointer file
+  copy:
+    dest: "{{ oracle_inventory }}/oraInst.loc"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+    content: |
+      inventory_loc={{ oracle_inventory }}
+      inst_group={{ oracle_group }}
+
 - name: Generate WLS silent install response file
   template:
     src: wls_install_response.j2
