@@ -54,6 +54,25 @@
   systemd:
     daemon_reload: true
 
+# Pre-create the log files as oracle so that NMServerConfig.initLogger()
+# never hits a root-owned file left over from an earlier run.
+# Ansible executes as root (become: true), so state=touch + owner= will
+# both create-if-absent AND chown-to-oracle if a stale root-owned file exists.
+# modification_time/access_time: preserve avoids spurious timestamp changes
+# on runs where the files are already correct.
+- name: Pre-create NM log files with oracle ownership
+  file:
+    path: "{{ item }}"
+    state: touch
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+    modification_time: preserve
+    access_time: preserve
+  loop:
+    - "{{ domain_logs }}/nodemanager.log"
+    - "{{ domain_logs }}/nodemanager.err"
+
 - block:
     - name: Enable and start Node Manager
       service:
