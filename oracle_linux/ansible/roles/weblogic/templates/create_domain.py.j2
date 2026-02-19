@@ -32,7 +32,7 @@ set('ListenPort', {{ admin_server_ssl_port }})
 cd('/')
 
 # ---- Admin credentials -----------------------------------------------------
-cd('/Security/base_domain/User/weblogic')
+cd('/Security/{{ domain_name }}/User/weblogic')
 cmo.setName('{{ wls_admin_user }}')
 cmo.setPassword('{{ wls_admin_password }}')
 
