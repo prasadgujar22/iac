@@ -21,8 +21,15 @@ set('Name', '{{ admin_server_name }}')
 set('ListenAddress', '{{ admin_server_host }}')
 set('ListenPort', {{ admin_server_port }})
 
-cmo.getSSL().setEnabled(True)
-cmo.getSSL().setListenPort({{ admin_server_ssl_port }})
+# In WLST offline mode the SSL bean is not pre-created by the template;
+# create it explicitly before configuring it.
+cd('/')
+cd('/Server/{{ admin_server_name }}')
+create('{{ admin_server_name }}', 'SSL')
+cd('/Server/{{ admin_server_name }}/SSL/{{ admin_server_name }}')
+set('Enabled', True)
+set('ListenPort', {{ admin_server_ssl_port }})
+cd('/')
 
 # ---- Admin credentials -----------------------------------------------------
 cd('/Security/base_domain/User/weblogic')
@@ -44,8 +51,11 @@ set('Cluster', '{{ cluster_name }}')
 set('ListenAddress', '{{ ms.host }}')
 set('ListenPort', {{ managed_server_port }})
 
-cmo.getSSL().setEnabled(True)
-cmo.getSSL().setListenPort({{ managed_server_ssl_port }})
+create('{{ ms.name }}', 'SSL')
+cd('/Server/{{ ms.name }}/SSL/{{ ms.name }}')
+set('Enabled', True)
+set('ListenPort', {{ managed_server_ssl_port }})
+cd('/')
 
 {% endfor %}
 
