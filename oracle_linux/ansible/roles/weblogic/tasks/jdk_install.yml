@@ -13,7 +13,7 @@
     home: /home/{{ oracle_user }}
     create_home: true
 
-- name: Create directory tree for WLS
+- name: Create directory tree for WLS (except jdk_home – created as symlink later)
   file:
     path: "{{ item }}"
     state: directory
@@ -23,7 +23,6 @@
   loop:
     - "{{ oracle_base }}"
     - "{{ mw_home }}"
-    - "{{ jdk_home }}"
     - "{{ installer_stage }}"
 
 - name: Copy JDK 17 RPM to staging area
@@ -40,22 +39,43 @@
     state: present
     disable_gpg_check: true
 
-- name: Detect installed JDK 17 home
-  command: "java -XshowSettings:all -version"
-  register: jdk_version_check
+- name: Detect actual JDK 17 home from RPM install (resolves symlink chain)
+  shell: |
+    java_bin=$(alternatives --list 2>/dev/null | awk '/^java /{print $3}' | head -1)
+    if [ -z "$java_bin" ]; then
+      java_bin=$(readlink -f /usr/bin/java 2>/dev/null)
+    fi
+    # Strip /bin/java suffix to get JAVA_HOME
+    echo "${java_bin%/bin/java}"
+  register: java_home_detect
   changed_when: false
-  ignore_errors: true
 
-- name: Set JAVA_HOME fact from installed RPM location
+- name: Set JAVA_HOME fact from detected path
   set_fact:
-    java_home: "/usr/lib/jvm/jdk-17-oracle-x64"
+    java_home: "{{ java_home_detect.stdout | trim }}"
 
-- name: Create symlink {{ jdk_home }} → installed JDK
+- name: Fail if JDK home was not detected
+  fail:
+    msg: "Could not detect JDK 17 home. Check that {{ jdk_rpm }} installed correctly."
+  when: java_home == ''
+
+- name: Show detected JAVA_HOME
+  debug:
+    msg: "Detected JAVA_HOME: {{ java_home }}"
+
+- name: Remove existing jdk_home directory if it exists (to create symlink)
+  file:
+    path: "{{ jdk_home }}"
+    state: absent
+  when: java_home != jdk_home
+
+- name: Create symlink {{ jdk_home }} → {{ java_home }}
   file:
     src: "{{ java_home }}"
     dest: "{{ jdk_home }}"
     state: link
     force: true
+  when: java_home != jdk_home
 
 - name: Set oracle user bash profile with JDK
   copy:
@@ -70,11 +90,10 @@
       export PATH=$JAVA_HOME/bin:$MW_HOME/oracle_common/common/bin:$PATH:$HOME/.local/bin:$HOME/bin
 
 - name: Verify Java version
-  become_user: "{{ oracle_user }}"
   command: "{{ jdk_home }}/bin/java -version"
   register: java_ver
   changed_when: false
 
 - name: Show Java version
   debug:
-    var: java_ver.stderr_lines
+    msg: "{{ java_ver.stderr | default(java_ver.stdout) }}"
