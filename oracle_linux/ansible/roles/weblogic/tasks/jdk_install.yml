@@ -25,9 +25,24 @@
     - "{{ mw_home }}"
     - "{{ installer_stage }}"
 
-- name: Copy JDK 17 RPM to staging area
+- name: Verify JDK RPM exists on control node
+  delegate_to: localhost
+  become: false
+  stat:
+    path: "{{ local_installer_src }}/{{ jdk_rpm }}"
+  register: jdk_rpm_stat
+
+- name: Fail if JDK RPM is missing
+  fail:
+    msg: >
+      JDK RPM not found at {{ local_installer_src }}/{{ jdk_rpm }}
+      on the Ansible control node. Place the file there or override
+      local_installer_src with -e local_installer_src=/path/to/media
+  when: not jdk_rpm_stat.stat.exists
+
+- name: Copy JDK 17 RPM to staging area on remote
   copy:
-    src: "{{ jdk_rpm }}"
+    src: "{{ local_installer_src }}/{{ jdk_rpm }}"
     dest: "{{ installer_stage }}/{{ jdk_rpm }}"
     owner: root
     group: root

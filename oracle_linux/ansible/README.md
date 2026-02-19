@@ -24,15 +24,26 @@ ansible --version   # 2.14+
 ```
 
 ### 2. Download Oracle software
-Place the following files in `roles/common/files/` (or an NFS share, then
-adjust `installer_stage` in `group_vars/all.yml`):
+Place the following files in `oracle_linux/ansible/files/` on the Ansible
+control node (this is `local_installer_src`, defaulting to
+`{{ playbook_dir }}/files`):
 
-| File | Source |
-|---|---|
-| `LINUX.X64_193000_grid_home.zip` | Oracle eDelivery / MOS |
-| `LINUX.X64_193000_db_home.zip` | Oracle eDelivery / MOS |
-| `jdk-17_linux-x64_bin.rpm` | oracle.com/java |
-| `fmw_14.1.2.0.0_wls.jar` | Oracle eDelivery / MOS |
+```bash
+oracle_linux/ansible/files/
+├── LINUX.X64_193000_grid_home.zip   # Oracle GI 19c  – Oracle eDelivery / MOS
+├── LINUX.X64_193000_db_home.zip     # Oracle DB 19c  – Oracle eDelivery / MOS
+├── jdk-17_linux-x64_bin.rpm         # JDK 17          – oracle.com/java
+└── fmw_14.1.2.0.0_wls.jar          # WLS 14.1.2      – Oracle eDelivery / MOS
+```
+
+If your installers live elsewhere, override at runtime:
+```bash
+ansible-playbook -i inventory/hosts.ini weblogic.yml \
+  -e local_installer_src=/data/oracle/media
+```
+
+The playbooks check each file exists on the control node and fail fast
+with a clear message if any are missing, before attempting a transfer.
 
 ### 3. SSH access
 The Terraform template already injects the SSH public key for `prasad`.
@@ -56,6 +67,11 @@ ansible/
 ├── site.yml                  # Full stack (RAC + WLS)
 ├── oracle_rac.yml            # Oracle RAC 19c only
 ├── weblogic.yml              # WebLogic 14.1.2 only
+├── files/                    # ← place installer media here (gitignored)
+│   ├── LINUX.X64_193000_grid_home.zip
+│   ├── LINUX.X64_193000_db_home.zip
+│   ├── jdk-17_linux-x64_bin.rpm
+│   └── fmw_14.1.2.0.0_wls.jar
 ├── inventory/
 │   └── hosts.ini
 ├── group_vars/

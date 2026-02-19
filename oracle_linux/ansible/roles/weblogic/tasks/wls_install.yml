@@ -4,9 +4,24 @@
 # Install Oracle WebLogic Server 14.1.2 (silent, using fmw installer jar)
 # =============================================================================
 
-- name: Copy WLS installer jar to staging area
+- name: Verify WLS installer jar exists on control node
+  delegate_to: localhost
+  become: false
+  stat:
+    path: "{{ local_installer_src }}/{{ wls_installer_jar }}"
+  register: wls_jar_stat
+
+- name: Fail if WLS installer jar is missing
+  fail:
+    msg: >
+      WLS installer not found at {{ local_installer_src }}/{{ wls_installer_jar }}
+      on the Ansible control node. Place the file there or override
+      local_installer_src with -e local_installer_src=/path/to/media
+  when: not wls_jar_stat.stat.exists
+
+- name: Copy WLS installer jar to staging area on remote
   copy:
-    src: "{{ wls_installer_jar }}"
+    src: "{{ local_installer_src }}/{{ wls_installer_jar }}"
     dest: "{{ installer_stage }}/{{ wls_installer_jar }}"
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
