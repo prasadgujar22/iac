@@ -11,7 +11,7 @@ Environment=JAVA_HOME={{ jdk_home }}
 Environment=MW_HOME={{ mw_home }}
 Environment=DOMAIN_HOME={{ domain_home }}
 WorkingDirectory={{ domain_home }}
-ExecStart={{ domain_home }}/bin/startManagedWebLogic.sh
+ExecStart={{ domain_home }}/bin/startManagedServer.sh
 Restart=on-failure
 RestartSec=30
 StandardOutput=append:{{ domain_logs }}/{{ inventory_hostname }}.log

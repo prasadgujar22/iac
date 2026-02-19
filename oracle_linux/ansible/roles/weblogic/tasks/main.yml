@@ -13,9 +13,10 @@
   import_tasks: domain_create.yml
   when: inventory_hostname in groups['wls_admin']
 
+# Node Manager must be running before managed servers attempt to start.
+- name: Configure Node Manager on all WLS nodes
+  import_tasks: node_manager.yml
+
 - name: Configure and start Managed Servers
   import_tasks: managed_servers.yml
   when: inventory_hostname in groups['wls_managed']
-
-- name: Configure Node Manager on all WLS nodes
-  import_tasks: node_manager.yml
