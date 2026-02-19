@@ -27,9 +27,30 @@
     group: "{{ oracle_group }}"
     mode: '0640'
 
-# 3. Unpack the domain.  This creates the full domain directory tree on the
-#    managed node – including bin/startManagedWebLogic.sh, config/, servers/,
-#    and the security credential stores – from the packed template.
+# 3. Unpack the domain.
+#
+#    unpack.sh requires an *empty* target directory (error 60303 otherwise).
+#    Prior failed runs may have left partial content (e.g. nodemanager/ or
+#    logs/ created by node_manager.yml before the phase order was fixed).
+#
+#    Guard logic:
+#      a) If config/config.xml already exists → domain was fully unpacked on a
+#         previous run; skip both the cleanup and the unpack (idempotent).
+#      b) If domain_home exists but has NO config.xml → partial/stale state;
+#         wipe the directory so unpack.sh starts from a clean slate.
+#      c) If domain_home does not exist → nothing to clean; unpack proceeds.
+#
+- name: Check whether the domain has already been unpacked
+  stat:
+    path: "{{ domain_home }}/config/config.xml"
+  register: _domain_config
+
+- name: Remove partial domain directory so unpack.sh starts clean
+  file:
+    path: "{{ domain_home }}"
+    state: absent
+  when: not _domain_config.stat.exists
+
 - name: Unpack managed domain template
   become_user: "{{ oracle_user }}"
   command: >
