@@ -1,17 +1,40 @@
 # Infrastructure as Code (IaC) - Home Lab
 
-Automated infrastructure provisioning for home lab environments using Packer, Terraform, and shell scripts targeting Proxmox VE.
+Automated infrastructure provisioning for home lab environments using Packer and Terraform across multiple hypervisors (Proxmox VE and vSphere).
 
 ## Overview
 
-This repository contains Infrastructure as Code configurations for automating VM template creation and deployment in a home lab environment. The project focuses on creating reproducible, version-controlled infrastructure using modern DevOps practices.
+This repository contains Infrastructure as Code configurations for automating VM template creation and infrastructure deployment in a home lab environment. The project supports multiple hypervisors and operating systems, focusing on reproducible, version-controlled infrastructure using modern DevOps practices.
 
 ## Repository Structure
 
 ```
 iac/
-├── alma_linux/          # AlmaLinux 9 VM template configurations
-├── ubuntu24-04-vms/     # Ubuntu 24.04 LTS VM configurations
+├── alma_linux/                    # AlmaLinux 9 VM configurations
+│   ├── packer/                    # Packer templates for AlmaLinux
+│   │   ├── almalinux.pkr.hcl
+│   │   ├── vars.pkrvars.hcl
+│   │   ├── http/                  # Kickstart configuration
+│   │   └── archives/              # Previous versions
+│   └── terraform/                 # Terraform configs for deployment
+│
+├── ubuntu24-04-vms/               # Ubuntu 24.04 LTS VM configurations
+│   ├── Proxmox/                   # Proxmox VE configurations
+│   │   ├── Packer/                # Packer templates for Proxmox
+│   │   │   ├── ubuntu-2404.pkr.hcl
+│   │   │   ├── variables.pkrvars.hcl
+│   │   │   ├── secrets.pkrvars.hcl
+│   │   │   └── http/              # Cloud-init configs
+│   │   ├── Terraform/             # Terraform for single node
+│   │   └── Terraform_PVE02/       # Terraform for secondary node
+│   │
+│   └── vSphere/                   # vSphere/VMware configurations
+│       ├── Packer/                # Packer templates for vSphere
+│       │   ├── ubuntu-24-04.pkr.hcl
+│       │   ├── variables.pkrvars.hcl
+│       │   └── http/              # Cloud-init configs
+│       └── Terraform/             # Terraform for vSphere deployment
+│
 ├── .gitignore
 └── README.md
 ```
@@ -22,13 +45,19 @@ iac/
 |------|---------|
 | **Packer** | Automated VM template creation |
 | **Terraform** | Infrastructure provisioning and management |
-| **Shell Scripts** | Automation and configuration tasks |
-| **Proxmox VE** | Virtualization platform |
+| **Proxmox VE** | Open-source virtualization platform |
+| **vSphere/VMware** | Enterprise virtualization platform |
+| **Cloud-init** | VM initialization and configuration |
 
-## Supported Operating Systems
+## Supported Configurations
 
+### Operating Systems
 - **AlmaLinux 9** - Enterprise-grade RHEL-compatible Linux
 - **Ubuntu 24.04 LTS** - Long-term support Ubuntu release
+
+### Hypervisors
+- **Proxmox VE** - Open-source virtualization with full support for AlmaLinux and Ubuntu
+- **vSphere/VMware** - Enterprise virtualization support for Ubuntu 24.04 LTS
 
 ## Prerequisites
 
@@ -50,7 +79,7 @@ cd iac
 
 ### 2. Configure Environment Variables
 
-Create a `.env` file or export the following variables:
+#### For Proxmox VE:
 
 ```bash
 export PROXMOX_URL="https://your-proxmox-host:8006/api2/json"
@@ -61,94 +90,203 @@ export PROXMOX_API_TOKEN_ID="your-token-id"
 export PROXMOX_API_TOKEN_SECRET="your-token-secret"
 ```
 
-### 3. Build VM Templates
-
-#### AlmaLinux 9 Template
+#### For vSphere/VMware:
 
 ```bash
-cd alma_linux
-packer init .
-packer validate .
-packer build .
+export VSPHERE_SERVER="your-vcenter-host"
+export VSPHERE_USER="your-username"
+export VSPHERE_PASSWORD="your-password"
+export VSPHERE_DATACENTER="your-datacenter"
 ```
 
-#### Ubuntu 24.04 Template
+### 3. Build VM Templates
+
+#### AlmaLinux 9 Template (Proxmox)
 
 ```bash
-cd ubuntu24-04-vms
+cd alma_linux/packer
 packer init .
-packer validate .
-packer build .
+packer validate -var-file="vars.pkrvars.hcl"
+packer build -var-file="vars.pkrvars.hcl" almalinux.pkr.hcl
+```
+
+#### Ubuntu 24.04 Template on Proxmox
+
+```bash
+cd ubuntu24-04-vms/Proxmox/Packer
+packer init .
+packer validate -var-file="secrets.pkrvars.hcl" -var-file="variables.pkrvars.hcl"
+packer build -var-file="secrets.pkrvars.hcl" -var-file="variables.pkrvars.hcl" ubuntu-2404.pkr.hcl
+```
+
+#### Ubuntu 24.04 Template on vSphere
+
+```bash
+cd ubuntu24-04-vms/vSphere/Packer
+packer init .
+packer validate -var-file="secrets.pkrvars.hcl" -var-file="variables.pkrvars.hcl"
+packer build -var-file="secrets.pkrvars.hcl" -var-file="variables.pkrvars.hcl" ubuntu-24-04.pkr.hcl
 ```
 
 ## Configuration
 
+### Choosing Your Hypervisor
+
+- **Proxmox VE**: Choose this for open-source, cost-effective solutions. Both AlmaLinux and Ubuntu are fully supported.
+- **vSphere**: Choose this for enterprise environments with existing VMware infrastructure. Ubuntu 24.04 is fully supported.
+
 ### Packer Variables
 
-Common variables that can be customized:
+Common variables that can be customized (see specific `variables.pkrvars.hcl` files):
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `proxmox_node` | Proxmox node name | - |
-| `vm_id` | VM template ID | - |
-| `vm_name` | Template name | - |
-| `iso_file` | ISO image path | - |
-| `ssh_username` | SSH user for provisioning | - |
-| `cores` | CPU cores | 2 |
-| `memory` | Memory in MB | 2048 |
-| `disk_size` | Disk size | 20G |
+| Variable | Description |
+|----------|-------------|
+| `proxmox_node` or `vcenter_server` | Hypervisor host/server |
+| `vm_id` or `vm_name` | VM template identifier |
+| `iso_file` | ISO image path in hypervisor |
+| `ssh_username` | SSH user for provisioning (usually `root` or `ubuntu`) |
+| `cores` | CPU cores allocated |
+| `memory` | Memory in MB |
+| `disk_size` | Disk size in GB |
 
 ### Terraform Variables
 
-Infrastructure variables for VM deployment can be configured in `terraform.tfvars`:
+Infrastructure deployment variables configured in `terraform.tfvars` or `.auto.tfvars`:
 
 ```hcl
+# Proxmox example
 proxmox_host     = "your-proxmox-host"
-template_name    = "your-template-name"
-target_node      = "your-node"
-vm_count         = 1
+template_name    = "ubuntu-24-04"
+target_node      = "pve01"  # or "pve02" for PVE02
+vm_count         = 3
+
+# vSphere example
+vsphere_vcenter  = "vcenter.example.com"
+template_name    = "ubuntu-24-04"
+datacenter       = "dc1"
+dns_servers      = ["8.8.8.8", "8.8.4.4"]
 ```
 
 ## Directory Details
 
 ### alma_linux/
 
-Contains Packer configurations for building AlmaLinux 9 VM templates on Proxmox VE:
+Contains Packer and Terraform configurations for building and deploying AlmaLinux 9 VMs on Proxmox VE:
 
-- HCL configuration files for Packer
-- Kickstart or cloud-init configurations
-- Post-installation scripts
+- **packer/** - Packer HCL configuration files, variables, and kickstart configurations
+- **terraform/** - Terraform code for deploying AlmaLinux VMs from templates
 
 ### ubuntu24-04-vms/
 
-Contains configurations for Ubuntu 24.04 LTS VMs:
+Contains configurations for Ubuntu 24.04 LTS VMs across multiple hypervisors:
 
-- Packer template definitions
-- Autoinstall/cloud-init configurations
-- Provisioning scripts
+#### Proxmox/
+
+Configurations for Proxmox VE hypervisor:
+
+- **Packer/** - Ubuntu 24.04 template creation with cloud-init
+- **Terraform/** - Terraform configurations for single Proxmox node deployments
+- **Terraform_PVE02/** - Terraform configurations for secondary Proxmox node (PVE02) deployments
+- **build.sh** - Helper scripts for building templates
+
+#### vSphere/
+
+Configurations for VMware vSphere/ESXi hypervisor:
+
+- **Packer/** - Ubuntu 24.04 template creation for vSphere with cloud-init
+- **Terraform/** - Terraform configurations for vSphere VM deployments
+- **build.sh** - Helper scripts for building templates
+
+## Workflow Overview
+
+This repository follows a two-stage process:
+
+1. **Template Creation (Packer)**: Build base VM templates with your OS of choice
+   - Automates VM provisioning with minimal dependencies
+   - Configures storage, network, and SSH settings
+   - Outputs a reusable template for rapid VM deployment
+
+2. **Infrastructure Deployment (Terraform)**: Deploy VMs from templates at scale
+   - Uses templates created by Packer
+   - Manages VM lifecycle, networking, and configuration
+   - Supports both single-node and multi-node deployments
+   - Can be version-controlled and managed through CI/CD
+
+### Typical Usage
+
+```
+1. Customize Packer variables for your environment
+   └─> Run: packer init && packer validate && packer build
+
+2. Verify template was created successfully in hypervisor
+
+3. Customize Terraform variables for your deployment
+   └─> Run: terraform init && terraform plan && terraform apply
+
+4. Access deployed VMs via SSH or console
+```
 
 ## Best Practices Implemented
 
 - **Version Control**: All infrastructure code is tracked in Git
-- **Modular Design**: Separate configurations for different OS templates
-- **Idempotent Operations**: Scripts and configurations are designed to be re-runnable
+- **Modular Design**: Separate configurations for different OS and hypervisor combinations
+- **Multi-Cloud Support**: Works with both open-source (Proxmox) and enterprise (vSphere) platforms
+- **Idempotent Operations**: Scripts and configurations are designed to be re-runnable safely
 - **Security**: Sensitive data excluded via `.gitignore`
+  - `secrets.pkrvars.hcl` files for Packer credentials
+  - `secrets.auto.tfvars` / `secret.tfvars` files for Terraform credentials
+  - Template files (`*.example`) provided for reference
+
+### Secrets Management
+
+1. Create your secrets files from the provided examples:
+   ```bash
+   cp secrets.pkrvars.hcl.example secrets.pkrvars.hcl
+   cp secrets.auto.tfvars.example secrets.auto.tfvars
+   ```
+
+2. Edit the files with your actual credentials (these are gitignored)
+
+3. For production environments, consider:
+   - Using Terraform Cloud/Enterprise with variable sets
+   - AWS Secrets Manager or HashiCorp Vault for credential management
+   - CI/CD pipeline integration with secure credential handling
 
 ## Troubleshooting
 
-### Common Issues
+### Packer Issues
 
 1. **Packer build fails with network timeout**
-   - Verify Proxmox network configuration
+   - Verify hypervisor network configuration
    - Check firewall rules for HTTP/HTTPS access
+   - Ensure ISO files are accessible
 
 2. **SSH connection refused during provisioning**
-   - Ensure SSH service is enabled in the template
+   - Verify SSH service is enabled in the template
+   - Check that cloud-init or kickstart scripts properly configure SSH
    - Verify SSH port is accessible from the Packer host
 
 3. **Template creation succeeds but VM won't boot**
-   - Check boot order settings
-   - Verify BIOS/UEFI settings match the template
+   - Check boot order settings in hypervisor
+   - Verify BIOS/UEFI settings match the template configuration
+   - Validate disk and memory allocations
+
+### Terraform Issues
+
+1. **Authentication fails**
+   - Verify API credentials and tokens are correct
+   - For Proxmox: Check token expiration
+   - For vSphere: Verify user permissions in vCenter
+
+2. **VM deployment is slow or times out**
+   - Check network connectivity to hypervisor
+   - Verify template exists and is accessible
+   - Review resource availability on target node
+
+3. **Terraform state conflicts**
+   - Back up your state files regularly
+   - Use `terraform state` commands with caution
+   - Consider using remote state backends for production
 
 ## Contributing
 
