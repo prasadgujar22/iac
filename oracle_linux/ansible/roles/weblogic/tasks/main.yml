@@ -13,10 +13,14 @@
   import_tasks: domain_create.yml
   when: inventory_hostname in groups['wls_admin']
 
-# Node Manager must be running before managed servers attempt to start.
-- name: Configure Node Manager on all WLS nodes
-  import_tasks: node_manager.yml
-
+# managed_servers runs BEFORE node_manager because unpack.sh (called inside
+# managed_servers.yml) requires an empty domain_home directory.
+# node_manager.yml pre-creates domain_home/nodemanager/ and domain_home/logs/,
+# which would cause unpack.sh error 60303.  Managed servers connect directly
+# to the admin server via t3:// and do not need Node Manager to start.
 - name: Configure and start Managed Servers
   import_tasks: managed_servers.yml
   when: inventory_hostname in groups['wls_managed']
+
+- name: Configure Node Manager on all WLS nodes
+  import_tasks: node_manager.yml
