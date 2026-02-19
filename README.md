@@ -10,33 +10,107 @@ This repository contains Infrastructure as Code configurations for automating VM
 
 ```
 iac/
-├── alma_linux/                    # AlmaLinux 9 VM configurations
-│   ├── packer/                    # Packer templates for AlmaLinux
-│   │   ├── almalinux.pkr.hcl
-│   │   ├── vars.pkrvars.hcl
-│   │   ├── http/                  # Kickstart configuration
-│   │   └── archives/              # Previous versions
-│   └── terraform/                 # Terraform configs for deployment
-│
-├── ubuntu24-04-vms/               # Ubuntu 24.04 LTS VM configurations
-│   ├── Proxmox/                   # Proxmox VE configurations
-│   │   ├── Packer/                # Packer templates for Proxmox
-│   │   │   ├── ubuntu-2404.pkr.hcl
-│   │   │   ├── variables.pkrvars.hcl
-│   │   │   ├── secrets.pkrvars.hcl
-│   │   │   └── http/              # Cloud-init configs
-│   │   ├── Terraform/             # Terraform for single node
-│   │   └── Terraform_PVE02/       # Terraform for secondary node
+├── alma_linux/
+│   ├── packer/
+│   │   ├── almalinux.pkr.hcl                    # Packer build configuration
+│   │   ├── vars.pkrvars.hcl                     # Packer variables
+│   │   ├── README.md
+│   │   ├── http/
+│   │   │   ├── ks.cfg                           # Kickstart config (production)
+│   │   │   ├── ks.cfg_working
+│   │   │   ├── ks.cfg.bkp
+│   │   │   └── ks.cfg.backp2
+│   │   └── archives/                            # Previous iterations
+│   │       ├── almalinux.pkr.hcl_working
+│   │       └── almalinux.pkr.hcl_working_updated
 │   │
-│   └── vSphere/                   # vSphere/VMware configurations
-│       ├── Packer/                # Packer templates for vSphere
-│       │   ├── ubuntu-24-04.pkr.hcl
-│       │   ├── variables.pkrvars.hcl
-│       │   └── http/              # Cloud-init configs
-│       └── Terraform/             # Terraform for vSphere deployment
+│   └── terraform/
+│       ├── main.tf                              # Main infrastructure code
+│       ├── provider.tf                          # Provider configuration
+│       ├── variables.tf                         # Variable definitions
+│       ├── terraform.tfvars                     # Variable values (gitignored)
+│       ├── secret.tfvars                        # Secrets file (gitignored)
+│       ├── terraform.tfstate                    # State file (gitignored)
+│       ├── terraform.tfstate.backup             # State backup (gitignored)
+│       └── README.md
+│
+├── oracle_linux/
+│   ├── .gitkeep
+│   └── packer/
+│       ├── oraclelinux.pkr.hcl                  # Packer build configuration
+│       ├── README.md
+│       ├── .gitignore
+│       └── http/
+│           └── ks.cfg                           # Kickstart configuration
+│
+├── ubuntu24-04-vms/
+│   ├── LICENSE
+│   ├── README.md
+│   │
+│   ├── Proxmox/
+│   │   ├── Packer/
+│   │   │   ├── ubuntu-2404.pkr.hcl              # Packer build config
+│   │   │   ├── variables.pkrvars.hcl            # Variable definitions
+│   │   │   ├── secrets.pkrvars.hcl              # Secrets (gitignored)
+│   │   │   ├── secrets.pkrvars.hcl.example      # Secrets template
+│   │   │   ├── build.sh                         # Build helper script
+│   │   │   ├── LICENSE.txt
+│   │   │   ├── README.md
+│   │   │   ├── packer_proxmox_ubuntu2404_guide.md
+│   │   │   └── http/                            # Cloud-init configs
+│   │   │       ├── meta-data
+│   │   │       ├── user-data
+│   │   │       ├── user-data.backup
+│   │   │       └── user-data.nw
+│   │   │
+│   │   ├── Terraform/                           # PVE01 deployments
+│   │   │   ├── main.tf                          # Main infrastructure
+│   │   │   ├── variables.tf                     # Variable definitions
+│   │   │   ├── terraform.tfvars                 # Variables (gitignored)
+│   │   │   ├── secrets.tfvars                   # Secrets (gitignored)
+│   │   │   ├── secrets.auto.tfvars              # Auto-loaded secrets (gitignored)
+│   │   │   ├── secrets.auto.tfvars.example      # Secrets template
+│   │   │   ├── build.sh                         # Helper script
+│   │   │   ├── README.md
+│   │   │   ├── blog-post.md
+│   │   │   ├── terraform.tfstate                # State (gitignored)
+│   │   │   ├── terraform.tfstate.backup         # State backup (gitignored)
+│   │   │   └── tfplan                           # Plan file (gitignored)
+│   │   │
+│   │   └── Terraform_PVE02/                     # PVE02 (secondary node) deployments
+│   │       ├── main.tf                          # Main infrastructure
+│   │       ├── variables.tf                     # Variable definitions
+│   │       ├── secrets.auto.tfvars              # Auto-loaded secrets (gitignored)
+│   │       ├── secrets.auto.tfvars.example      # Secrets template
+│   │       ├── build.sh                         # Helper script
+│   │       └── README.md
+│   │
+│   └── vSphere/
+│       ├── Packer/
+│       │   ├── ubuntu-24-04.pkr.hcl             # Packer build config
+│       │   ├── variables.pkrvars.hcl            # Variable definitions
+│       │   ├── secrets.pkrvars.hcl.example      # Secrets template
+│       │   ├── build.sh                         # Build helper script
+│       │   ├── README.md
+│       │   ├── blog.md
+│       │   └── http/                            # Cloud-init configs
+│       │       ├── meta-data
+│       │       └── user-data
+│       │
+│       └── Terraform/
+│           ├── main.tf                          # Main infrastructure
+│           ├── variables.tf                     # Variable definitions
+│           ├── output.tf                        # Output definitions
+│           ├── vars.auto.tfvars                 # Auto-loaded variables
+│           ├── terraform.tfvars.example         # Variable template
+│           ├── README.md
+│           ├── blog_terraform_vsphere.md
+│           └── templates/                       # Cloud-init templates
+│               ├── metadata.yaml
+│               └── userdata.yaml
 │
 ├── .gitignore
-└── README.md
+└── README.md                                    # This file
 ```
 
 ## Technologies Used
@@ -53,10 +127,11 @@ iac/
 
 ### Operating Systems
 - **AlmaLinux 9** - Enterprise-grade RHEL-compatible Linux
+- **Oracle Linux** - Enterprise Linux compatible with RHEL
 - **Ubuntu 24.04 LTS** - Long-term support Ubuntu release
 
 ### Hypervisors
-- **Proxmox VE** - Open-source virtualization with full support for AlmaLinux and Ubuntu
+- **Proxmox VE** - Open-source virtualization with full support for AlmaLinux, Oracle Linux, and Ubuntu
 - **vSphere/VMware** - Enterprise virtualization support for Ubuntu 24.04 LTS
 
 ## Prerequisites
@@ -175,6 +250,14 @@ Contains Packer and Terraform configurations for building and deploying AlmaLinu
 
 - **packer/** - Packer HCL configuration files, variables, and kickstart configurations
 - **terraform/** - Terraform code for deploying AlmaLinux VMs from templates
+
+### oracle_linux/
+
+Contains Packer configurations for building Oracle Linux VM templates on Proxmox VE:
+
+- **packer/** - Packer HCL configuration files and kickstart configurations for Oracle Linux
+  - `oraclelinux.pkr.hcl` - Packer build configuration
+  - `http/` - Kickstart configuration files
 
 ### ubuntu24-04-vms/
 
