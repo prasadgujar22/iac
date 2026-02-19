@@ -4,14 +4,17 @@
 
 DomainsFile={{ domain_home }}/nodemanager/nodemanager.domains
 LogLimit=0
-PropertiesVersion=12.2.1
+PropertiesVersion=14.1.2.0.0
 AuthenticationEnabled=true
 NodeManagerHome={{ domain_home }}/nodemanager
 JavaHome={{ jdk_home }}
 LogLevel=INFO
 DomainsFileEnabled=true
 ListenAddress={{ ansible_host }}
-NativeVersionEnabled=true
+# NativeVersionEnabled=false avoids libnm.so native-library dependency.
+# The native mode gives a minor startup-speed benefit but requires OS-specific
+# shared libraries that are not always present on fresh Oracle Linux installs.
+NativeVersionEnabled=false
 ListenPort=5556
 LogToStderr=false
 weblogic.StartScriptEnabled=true
