@@ -63,7 +63,22 @@
     JAVA_HOME: "{{ jdk_home }}"
     MW_HOME: "{{ mw_home }}"
 
-# 4. Pre-create boot.properties so the managed-server JVM can start
+# 4. Ensure the logs directory exists before we start the systemd unit.
+#    The wls-managed.service unit uses:
+#      StandardOutput=append:{{ domain_logs }}/{{ inventory_hostname }}.log
+#      StandardError=append:{{ domain_logs }}/{{ inventory_hostname }}.err
+#    systemd's append: opens/creates the FILE but not missing parent directories.
+#    If domain_logs does not exist the service fails to start silently.
+#    unpack.sh does not create it, so we must ensure it here.
+- name: Create domain logs directory
+  file:
+    path: "{{ domain_logs }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0750'
+
+# 5. Pre-create boot.properties so the managed-server JVM can start
 #    non-interactively.  WLS encrypts the plain-text credentials in-place on
 #    the first successful boot; force: false prevents Ansible from overwriting
 #    the encrypted file on subsequent runs.
@@ -112,9 +127,50 @@
     state: started
     enabled: true
 
-- name: Wait for Managed Server port {{ managed_server_port }}
-  wait_for:
-    host: "{{ ansible_host }}"
-    port: "{{ managed_server_port }}"
-    timeout: 180
-    state: started
+- block:
+    # Allow 5 minutes for the JVM to boot, load the domain config from
+    # the admin server, and begin accepting connections.  First-boot on a
+    # VM is typically 2-4 minutes; the extra headroom avoids false failures.
+    - name: Wait for Managed Server port {{ managed_server_port }}
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: "{{ managed_server_port }}"
+        timeout: 300
+        state: started
+
+  rescue:
+    - name: Collect Managed Server journal (last 100 lines)
+      command: "journalctl -u wls-managed-{{ inventory_hostname }} -n 100 --no-pager"
+      register: _ms_journal
+      changed_when: false
+
+    - name: Show Managed Server journal
+      debug:
+        var: _ms_journal.stdout_lines
+
+    - name: Collect Managed Server stdout log (last 80 lines)
+      command: "tail -80 {{ domain_logs }}/{{ inventory_hostname }}.log"
+      register: _ms_log
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show Managed Server stdout log
+      debug:
+        var: _ms_log.stdout_lines
+
+    - name: Collect Managed Server stderr log (last 40 lines)
+      command: "tail -40 {{ domain_logs }}/{{ inventory_hostname }}.err"
+      register: _ms_err
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show Managed Server stderr log
+      debug:
+        var: _ms_err.stdout_lines
+
+    - name: Re-raise failure
+      fail:
+        msg: >-
+          Managed Server on {{ inventory_hostname }} did not open port
+          {{ managed_server_port }} within 300 seconds.
+          Review the diagnostic output above.
