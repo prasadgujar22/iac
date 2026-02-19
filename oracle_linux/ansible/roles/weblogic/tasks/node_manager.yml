@@ -12,6 +12,29 @@
     group: "{{ oracle_group }}"
     mode: '0750'
 
+# domain_logs lives under domain_home which is only fully created on the admin
+# node by domain_create.yml.  Managed nodes need the directory too so that
+# the systemd unit can open the log files on startup.
+- name: Create Node Manager log directory
+  file:
+    path: "{{ domain_logs }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0750'
+
+# nodemanager.domains is required when DomainsFileEnabled=true (our default).
+# NM crashes on startup if the file is referenced but absent.  An empty file
+# is valid; nmEnroll() / domain pack-unpack will populate it later.
+- name: Create empty nodemanager.domains if absent
+  copy:
+    content: ""
+    dest: "{{ domain_home }}/nodemanager/nodemanager.domains"
+    force: false        # never overwrite an already-populated file
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
 - name: Generate nodemanager.properties
   template:
     src: nodemanager.properties.j2
@@ -26,6 +49,10 @@
     dest: /etc/systemd/system/wls-nodemanager.service
     mode: '0644'
   notify: Reload systemd
+
+- name: Reload systemd daemon before starting Node Manager
+  systemd:
+    daemon_reload: true
 
 - name: Enable and start Node Manager
   service:
