@@ -1,0 +1,47 @@
+---
+# =============================================================================
+# oracle_rac/tasks/db_install.yml
+# Oracle Database 19c software-only install (RDBMS home, no database yet)
+# The installer SSH-pushes the home to node2 automatically.
+# =============================================================================
+
+- name: Generate DB installer response file
+  template:
+    src: db_install_response.j2
+    dest: "{{ installer_stage }}/db_install.rsp"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+  when: inventory_hostname == oracle_node1_hostname
+
+- name: Run Oracle DB installer (silent, software only) – node1 only
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ oracle_home }}/runInstaller
+    -silent
+    -responseFile {{ installer_stage }}/db_install.rsp
+    -ignorePrereqFailure
+    -skipPrereqs
+  register: db_install_result
+  failed_when: >
+    db_install_result.rc not in [0, 6] and
+    'Successfully Setup Software' not in db_install_result.stdout
+  changed_when: >
+    'Successfully Setup Software' in db_install_result.stdout
+  when: inventory_hostname == oracle_node1_hostname
+  async: 3600
+  poll: 30
+
+- name: Show DB installer output
+  debug:
+    var: db_install_result.stdout_lines
+  when: inventory_hostname == oracle_node1_hostname
+
+- name: Run DB home root.sh on ALL nodes (node1 first)
+  command: "{{ oracle_home }}/root.sh"
+  register: db_root_result
+  changed_when: db_root_result.rc == 0
+
+- name: Show root.sh output
+  debug:
+    var: db_root_result.stdout_lines

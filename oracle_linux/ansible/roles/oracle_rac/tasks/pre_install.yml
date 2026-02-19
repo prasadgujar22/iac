@@ -1,0 +1,161 @@
+---
+# =============================================================================
+# oracle_rac/tasks/pre_install.yml
+# RAC-specific OS pre-requisites (run on ALL RAC nodes)
+# =============================================================================
+
+- name: Install Oracle RAC prerequisite packages
+  dnf:
+    name:
+      - oracle-database-preinstall-19c
+      - cvuqdisk                         # Cluster Verification Utility disk pkg
+      - oracleasm-support
+      - kmod-oracleasm
+    state: present
+
+- name: Enable oracleasm module
+  command: modprobe oracleasm
+  changed_when: false
+
+- name: Configure oracleasm
+  command: >
+    /usr/sbin/oracleasm configure -i
+    -u {{ grid_user }}
+    -g asmadmin
+    -b y
+    -s y
+  args:
+    creates: /etc/sysconfig/oracleasm
+
+- name: Initialize oracleasm
+  command: /usr/sbin/oracleasm init
+  changed_when: false
+
+- name: Set node-specific variables
+  set_fact:
+    node_number: "{{ '1' if inventory_hostname == oracle_node1_hostname else '2' }}"
+
+- name: Create Grid home directory
+  file:
+    path: "{{ grid_home }}"
+    state: directory
+    owner: "{{ grid_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+
+- name: Create Oracle DB home directory
+  file:
+    path: "{{ oracle_home }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+
+- name: Create SSH directory for oracle user
+  file:
+    path: /home/{{ oracle_user }}/.ssh
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0700'
+
+- name: Create SSH directory for grid user
+  file:
+    path: /home/{{ grid_user }}/.ssh
+    state: directory
+    owner: "{{ grid_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0700'
+
+# SSH key exchange between RAC nodes (required by Oracle installer)
+- name: Generate SSH key pair for oracle user
+  become_user: "{{ oracle_user }}"
+  openssh_keypair:
+    path: /home/{{ oracle_user }}/.ssh/id_rsa
+    type: rsa
+    size: 2048
+    force: false
+
+- name: Generate SSH key pair for grid user
+  become_user: "{{ grid_user }}"
+  openssh_keypair:
+    path: /home/{{ grid_user }}/.ssh/id_rsa
+    type: rsa
+    size: 2048
+    force: false
+
+- name: Fetch oracle public key from each node
+  slurp:
+    src: /home/{{ oracle_user }}/.ssh/id_rsa.pub
+  register: oracle_pub_key
+
+- name: Fetch grid public key from each node
+  slurp:
+    src: /home/{{ grid_user }}/.ssh/id_rsa.pub
+  register: grid_pub_key
+
+- name: Add oracle public keys to all RAC nodes
+  authorized_key:
+    user: "{{ oracle_user }}"
+    key: "{{ hostvars[item]['oracle_pub_key']['content'] | b64decode }}"
+    state: present
+  loop: "{{ groups['rac_nodes'] }}"
+
+- name: Add grid public keys to all RAC nodes
+  authorized_key:
+    user: "{{ grid_user }}"
+    key: "{{ hostvars[item]['grid_pub_key']['content'] | b64decode }}"
+    state: present
+  loop: "{{ groups['rac_nodes'] }}"
+
+- name: Populate SSH known_hosts for oracle user (avoid first-connect prompt)
+  become_user: "{{ oracle_user }}"
+  known_hosts:
+    name: "{{ item }}"
+    state: present
+    hash_host: false
+    key: "{{ lookup('pipe', 'ssh-keyscan -H ' + item + ' 2>/dev/null') }}"
+  loop: "{{ groups['rac_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
+  ignore_errors: true
+
+- name: Populate SSH known_hosts for grid user
+  become_user: "{{ grid_user }}"
+  known_hosts:
+    name: "{{ item }}"
+    state: present
+    hash_host: false
+    key: "{{ lookup('pipe', 'ssh-keyscan -H ' + item + ' 2>/dev/null') }}"
+  loop: "{{ groups['rac_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
+  ignore_errors: true
+
+- name: Copy Oracle GI installer zip to staging area
+  copy:
+    src: "{{ oracle_gi_zip }}"
+    dest: "{{ installer_stage }}/{{ oracle_gi_zip }}"
+    owner: "{{ grid_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+
+- name: Copy Oracle DB installer zip to staging area
+  copy:
+    src: "{{ oracle_db_zip }}"
+    dest: "{{ installer_stage }}/{{ oracle_db_zip }}"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+
+- name: Unzip Oracle GI installer
+  become_user: "{{ grid_user }}"
+  unarchive:
+    src: "{{ installer_stage }}/{{ oracle_gi_zip }}"
+    dest: "{{ grid_home }}"
+    remote_src: true
+    creates: "{{ grid_home }}/gridSetup.sh"
+
+- name: Unzip Oracle DB installer
+  become_user: "{{ oracle_user }}"
+  unarchive:
+    src: "{{ installer_stage }}/{{ oracle_db_zip }}"
+    dest: "{{ oracle_home }}"
+    remote_src: true
+    creates: "{{ oracle_home }}/runInstaller"

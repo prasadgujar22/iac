@@ -1,0 +1,10 @@
+---
+# =============================================================================
+# site.yml – Run full stack (RAC + WLS) in the correct order
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini site.yml
+# =============================================================================
+
+- import_playbook: oracle_rac.yml
+- import_playbook: weblogic.yml

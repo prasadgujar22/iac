@@ -1,0 +1,33 @@
+---
+# =============================================================================
+# weblogic/tasks/managed_servers.yml
+# Enroll managed servers in the domain and start them via Node Manager
+# =============================================================================
+
+- name: Create managed server start script
+  template:
+    src: startManagedWebLogic.sh.j2
+    dest: "{{ domain_home }}/bin/startManagedWebLogic.sh"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0750'
+
+- name: Install Managed Server systemd unit
+  template:
+    src: wls-managed.service.j2
+    dest: "/etc/systemd/system/wls-managed-{{ inventory_hostname }}.service"
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Enable and start Managed Server service
+  service:
+    name: "wls-managed-{{ inventory_hostname }}"
+    state: started
+    enabled: true
+
+- name: Wait for Managed Server port {{ managed_server_port }}
+  wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ managed_server_port }}"
+    timeout: 180
+    state: started

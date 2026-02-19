@@ -1,0 +1,75 @@
+---
+# =============================================================================
+# oracle_rac/tasks/grid_install.yml
+# Oracle Grid Infrastructure 19c silent installation
+# Run on node1 first; the installer automatically configures node2 via SSH
+# =============================================================================
+
+- name: Generate Grid Infrastructure response file
+  template:
+    src: grid_install_response.j2
+    dest: "{{ installer_stage }}/grid_install.rsp"
+    owner: "{{ grid_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+  when: inventory_hostname == oracle_node1_hostname
+
+- name: Run Grid Infrastructure installer (silent) – node1 only
+  become_user: "{{ grid_user }}"
+  command: >
+    {{ grid_home }}/gridSetup.sh
+    -silent
+    -responseFile {{ installer_stage }}/grid_install.rsp
+    -ignorePrereqFailure
+  register: gi_install_result
+  failed_when: >
+    gi_install_result.rc not in [0, 6] and
+    'Successfully Setup Software' not in gi_install_result.stdout
+  changed_when: >
+    'Successfully Setup Software' in gi_install_result.stdout
+  when: inventory_hostname == oracle_node1_hostname
+  async: 3600
+  poll: 30
+
+- name: Run orainstRoot.sh on ALL nodes
+  command: /u01/app/oraInventory/orainstRoot.sh
+  register: orainst_result
+  changed_when: orainst_result.rc == 0
+  ignore_errors: true
+
+- name: Run grid root.sh on ALL nodes (sequentially – node1 then node2)
+  command: "{{ grid_home }}/root.sh"
+  register: grid_root_result
+  changed_when: grid_root_result.rc == 0
+  # Run on node1 first, then node2 – enforce with serial: 1 in playbook
+
+- name: Show grid root.sh output
+  debug:
+    var: grid_root_result.stdout_lines
+
+- name: Execute Grid Configuration Assistant (GRIDCA) – node1 only
+  become_user: "{{ grid_user }}"
+  command: >
+    {{ grid_home }}/gridSetup.sh
+    -silent
+    -executeConfigTools
+    -responseFile {{ installer_stage }}/grid_install.rsp
+    -ignorePrereqFailure
+  register: gridca_result
+  failed_when: gridca_result.rc not in [0, 6]
+  changed_when: true
+  when: inventory_hostname == oracle_node1_hostname
+  async: 1800
+  poll: 30
+
+- name: Verify clusterware is running
+  become_user: "{{ grid_user }}"
+  command: "{{ grid_home }}/bin/crsctl check cluster -all"
+  register: crs_status
+  changed_when: false
+  when: inventory_hostname == oracle_node1_hostname
+
+- name: Show cluster status
+  debug:
+    var: crs_status.stdout_lines
+  when: inventory_hostname == oracle_node1_hostname

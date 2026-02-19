@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# Global variables shared by all roles
+# =============================================================================
+
+# --- Oracle OS users & groups ---
+oracle_user: oracle
+oracle_group: oinstall
+oracle_groups:
+  - oinstall
+  - dba
+  - oper
+  - backupdba
+  - dgdba
+  - kmdba
+  - racdba
+  - asmadmin
+  - asmdba
+  - asmoper
+
+grid_user: grid
+grid_group: oinstall
+
+# --- Base directories ---
+oracle_base: /u01/app/oracle
+grid_base: /u01/app/grid
+oracle_inventory: /u01/app/oraInventory
+
+# --- Installer staging area (copy your zip files here before running) ---
+installer_stage: /opt/oracle/stage
+
+# --- Software install media (place these on the control node or an NFS share) ---
+# Download from Oracle eDelivery / MOS before running playbooks
+oracle_gi_zip: LINUX.X64_193000_grid_home.zip       # Oracle GI 19c
+oracle_db_zip: LINUX.X64_193000_db_home.zip          # Oracle DB 19c
+jdk_rpm: jdk-17_linux-x64_bin.rpm                    # JDK 17 RPM from Oracle
+wls_installer_jar: fmw_14.1.2.0.0_wls_lite.jar       # WLS 14.1.2 silent installer
+
+# --- Patch (optional, set to '' to skip) ---
+oracle_opatch_zip: ''         # e.g. p6880880_190000_Linux-x86-64.zip
+oracle_rac_patch_zip: ''      # e.g. p35943157_190000_Linux-x86-64.zip (latest RU)

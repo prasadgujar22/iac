@@ -1,0 +1,82 @@
+---
+# =============================================================================
+# oracle_rac.yml – Oracle RAC 19c cluster setup
+#
+# Run order:
+#   1. Common OS pre-reqs on all RAC nodes (parallel)
+#   2. Grid Infrastructure installation   (serial – node1 then node2)
+#   3. Oracle DB software installation    (node1 drives, pushes to node2)
+#   4. DBCA – create RAC database         (node1 only)
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini oracle_rac.yml
+#   ansible-playbook -i inventory/hosts.ini oracle_rac.yml --tags pre_install
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Phase 1: OS pre-requisites (parallel on all RAC nodes)
+# ---------------------------------------------------------------------------
+- name: Common OS configuration for all RAC nodes
+  hosts: rac_nodes
+  gather_facts: true
+  become: true
+  roles:
+    - role: common
+      tags: [common, pre_install]
+
+# ---------------------------------------------------------------------------
+# Phase 2: RAC-specific pre-install + ASM disk prep (parallel)
+# ---------------------------------------------------------------------------
+- name: RAC pre-install and ASM disk configuration
+  hosts: rac_nodes
+  gather_facts: false
+  become: true
+  tags: [rac_preinstall, pre_install]
+  tasks:
+    - import_role:
+        name: oracle_rac
+        tasks_from: pre_install
+    - import_role:
+        name: oracle_rac
+        tasks_from: asm_disks
+
+# ---------------------------------------------------------------------------
+# Phase 3: Grid Infrastructure install (SERIAL – node1 must finish first)
+# ---------------------------------------------------------------------------
+- name: Install Oracle Grid Infrastructure (node1 first)
+  hosts: rac_nodes
+  gather_facts: false
+  become: true
+  serial: 1          # <-- critical: runs node1 fully before starting node2
+  tags: [gi_install]
+  tasks:
+    - import_role:
+        name: oracle_rac
+        tasks_from: grid_install
+
+# ---------------------------------------------------------------------------
+# Phase 4: Oracle DB software install (node1 drives, pushes to node2)
+# ---------------------------------------------------------------------------
+- name: Install Oracle Database software
+  hosts: rac_nodes
+  gather_facts: false
+  become: true
+  serial: 1
+  tags: [db_install]
+  tasks:
+    - import_role:
+        name: oracle_rac
+        tasks_from: db_install
+
+# ---------------------------------------------------------------------------
+# Phase 5: Create RAC database via DBCA (node1 only)
+# ---------------------------------------------------------------------------
+- name: Create Oracle RAC database (DBCA)
+  hosts: rac-node1
+  gather_facts: false
+  become: true
+  tags: [dbca, db_create]
+  tasks:
+    - import_role:
+        name: oracle_rac
+        tasks_from: dbca

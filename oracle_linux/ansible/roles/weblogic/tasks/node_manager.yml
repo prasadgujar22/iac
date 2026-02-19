@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# weblogic/tasks/node_manager.yml
+# Configure and start Node Manager on every WLS node
+# =============================================================================
+
+- name: Create Node Manager home directory
+  file:
+    path: "{{ domain_home }}/nodemanager"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0750'
+
+- name: Generate nodemanager.properties
+  template:
+    src: nodemanager.properties.j2
+    dest: "{{ domain_home }}/nodemanager/nodemanager.properties"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
+- name: Install Node Manager systemd unit
+  template:
+    src: wls-nodemanager.service.j2
+    dest: /etc/systemd/system/wls-nodemanager.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Enable and start Node Manager
+  service:
+    name: wls-nodemanager
+    state: started
+    enabled: true
+
+- name: Wait for Node Manager port 5556
+  wait_for:
+    host: "{{ ansible_host }}"
+    port: 5556
+    timeout: 60
+    state: started
