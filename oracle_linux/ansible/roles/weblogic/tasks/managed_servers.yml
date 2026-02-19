@@ -1,24 +1,79 @@
 ---
 # =============================================================================
 # weblogic/tasks/managed_servers.yml
-# Enroll managed servers in the domain and start them via Node Manager
+# Distribute the WLS domain to managed nodes and start managed servers.
+# Prerequisites (run in prior phases of weblogic.yml):
+#   - JDK + WLS installed on this host
+#   - Node Manager running on this host
+#   - Admin Server running (domain_create.yml has completed on wls-admin)
+#   - managed_template.jar fetched to /tmp/ on the Ansible controller
 # =============================================================================
 
-# The full domain tree (including bin/) is only created on the admin node by
-# domain_create.yml.  Managed nodes need the bin/ directory to exist before
-# the start script template can be deployed.
-- name: Create domain bin directory on managed nodes
+# 1. Resolve which WLS managed-server name belongs to this inventory host.
+#    managed_servers list example:
+#      - { name: ms1, host: 192.168.29.123 }   # wls-node1
+#      - { name: ms2, host: 192.168.29.124 }   # wls-node2
+- name: Set managed server name for this host
+  set_fact:
+    ms_name: "{{ (managed_servers | selectattr('host', 'equalto', ansible_host) | first).name }}"
+
+# 2. Push the packed domain template that domain_create.yml produced on the
+#    admin server and the controller fetched to /tmp/managed_template.jar.
+- name: Copy managed domain template to managed node
+  copy:
+    src: /tmp/managed_template.jar
+    dest: "{{ installer_stage }}/managed_template.jar"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
+# 3. Unpack the domain.  This creates the full domain directory tree on the
+#    managed node – including bin/startManagedWebLogic.sh, config/, servers/,
+#    and the security credential stores – from the packed template.
+- name: Unpack managed domain template
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ mw_home }}/oracle_common/common/bin/unpack.sh
+    -domain={{ domain_home }}
+    -template={{ installer_stage }}/managed_template.jar
+  args:
+    creates: "{{ domain_home }}/config/config.xml"
+  environment:
+    JAVA_HOME: "{{ jdk_home }}"
+    MW_HOME: "{{ mw_home }}"
+
+# 4. Pre-create boot.properties so the managed-server JVM can start
+#    non-interactively.  WLS encrypts the plain-text credentials in-place on
+#    the first successful boot; force: false prevents Ansible from overwriting
+#    the encrypted file on subsequent runs.
+- name: Create security directory for managed server
   file:
-    path: "{{ domain_home }}/bin"
+    path: "{{ domain_home }}/servers/{{ ms_name }}/security"
     state: directory
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
-    mode: '0750'
+    mode: '0700'
 
+- name: Write boot.properties for managed server
+  copy:
+    content: |
+      username={{ wls_admin_user }}
+      password={{ wls_admin_password }}
+    dest: "{{ domain_home }}/servers/{{ ms_name }}/security/boot.properties"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0600'
+    force: false
+
+# 5. Deploy the thin Ansible-managed wrapper.  It is intentionally named
+#    startManagedServer.sh (not startManagedWebLogic.sh) so that it does NOT
+#    overwrite the WLS-native script that unpack.sh created above.
+#    The wrapper sets env vars and calls the native script with the correct
+#    server name ({{ ms_name }}) and admin URL.
 - name: Create managed server start script
   template:
     src: startManagedWebLogic.sh.j2
-    dest: "{{ domain_home }}/bin/startManagedWebLogic.sh"
+    dest: "{{ domain_home }}/bin/startManagedServer.sh"
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: '0750'

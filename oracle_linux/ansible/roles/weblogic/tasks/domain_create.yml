@@ -100,3 +100,28 @@
 - name: Show JMS config output
   debug:
     var: jms_config_result.stdout_lines
+
+# ---------------------------------------------------------------------------
+# Pack the domain so it can be distributed to managed nodes.
+# -managed=true produces a minimal template: it includes the configuration
+# needed by managed servers but omits admin-server private data.
+# ---------------------------------------------------------------------------
+- name: Pack managed domain template
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ mw_home }}/oracle_common/common/bin/pack.sh
+    -domain={{ domain_home }}
+    -template={{ installer_stage }}/managed_template.jar
+    -template_name={{ domain_name }}
+    -managed=true
+  args:
+    creates: "{{ installer_stage }}/managed_template.jar"
+  environment:
+    JAVA_HOME: "{{ jdk_home }}"
+    MW_HOME: "{{ mw_home }}"
+
+- name: Fetch managed domain template to Ansible controller
+  fetch:
+    src: "{{ installer_stage }}/managed_template.jar"
+    dest: /tmp/managed_template.jar
+    flat: true
