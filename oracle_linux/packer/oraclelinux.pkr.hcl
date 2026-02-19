@@ -63,7 +63,7 @@ source "proxmox-iso" "oraclelinux" {
   # Boot ISO block
   boot_iso {
     type     = "ide"
-    iso_file = "local:iso/OracleLinux-R9-U4-x86_64-dvd.iso"
+    iso_file = "local:iso/OracleLinux-R9-U7-x86_64-dvd.iso"
     unmount  = true
     index    = 2
   }
