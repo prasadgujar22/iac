@@ -35,11 +35,9 @@
     group: "{{ oracle_group }}"
     mode: '0775'
 
-- name: Create oraInst.loc pointer file
+- name: Write /etc/oraInst.loc (system-wide pointer used by OUI)
   copy:
-    dest: "{{ oracle_inventory }}/oraInst.loc"
-    owner: "{{ oracle_user }}"
-    group: "{{ oracle_group }}"
+    dest: /etc/oraInst.loc
     mode: '0644'
     content: |
       inventory_loc={{ oracle_inventory }}
@@ -60,7 +58,6 @@
     -jar {{ installer_stage }}/{{ wls_installer_jar }}
     -silent
     -responseFile {{ installer_stage }}/wls_install.rsp
-    -invPtrLoc {{ oracle_inventory }}/oraInst.loc
   register: wls_install_result
   failed_when: >
     wls_install_result.rc != 0 and
