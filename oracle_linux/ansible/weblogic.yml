@@ -6,8 +6,16 @@
 #   1. Common OS pre-reqs on all WLS nodes (parallel)
 #   2. JDK 17 + WLS software install (all nodes in parallel)
 #   3. Domain creation on Admin Server
-#   4. Node Manager start on all nodes
-#   5. Managed Server start on managed nodes
+#   4. Managed Server start on managed nodes  ← BEFORE node_manager
+#   5. Node Manager start on all nodes        ← AFTER unpack
+#
+# Why managed servers before Node Manager?
+#   unpack.sh (Phase 4) requires an empty domain directory.  node_manager.yml
+#   pre-creates domain_home/nodemanager/ and domain_home/logs/ which makes the
+#   directory non-empty and causes error 60303.  Managed servers connect
+#   directly to the admin server (t3://) – they do not need Node Manager to
+#   start.  Node Manager is started afterwards and places its files into the
+#   already-unpacked domain tree.
 #
 # Usage:
 #   ansible-playbook -i inventory/hosts.ini weblogic.yml
@@ -55,20 +63,9 @@
         tasks_from: domain_create
 
 # ---------------------------------------------------------------------------
-# Phase 4: Start Node Manager on all WLS nodes
-# ---------------------------------------------------------------------------
-- name: Start Node Manager
-  hosts: wls_nodes
-  gather_facts: false
-  become: true
-  tags: [node_manager]
-  tasks:
-    - import_role:
-        name: weblogic
-        tasks_from: node_manager
-
-# ---------------------------------------------------------------------------
-# Phase 5: Start Managed Servers
+# Phase 4: Distribute domain and start Managed Servers
+# unpack.sh requires an empty domain_home; node_manager.yml would pollute it,
+# so managed servers are started first.
 # ---------------------------------------------------------------------------
 - name: Start Managed Servers
   hosts: wls_managed
@@ -79,3 +76,18 @@
     - import_role:
         name: weblogic
         tasks_from: managed_servers
+
+# ---------------------------------------------------------------------------
+# Phase 5: Start Node Manager on all WLS nodes
+# Runs after unpack so NM dirs are created inside the already-populated
+# domain tree rather than an empty domain_home.
+# ---------------------------------------------------------------------------
+- name: Start Node Manager
+  hosts: wls_nodes
+  gather_facts: false
+  become: true
+  tags: [node_manager]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: node_manager
