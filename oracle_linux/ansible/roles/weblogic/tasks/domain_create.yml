@@ -1,0 +1,102 @@
+---
+# =============================================================================
+# weblogic/tasks/domain_create.yml
+# Create the WLS domain on the Admin Server node (wls-admin)
+# Uses a WLST Python script rendered from a Jinja2 template.
+# =============================================================================
+
+- name: Create domain directory
+  file:
+    path: "{{ domain_home }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+
+- name: Create domain logs directory
+  file:
+    path: "{{ domain_logs }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+
+- name: Generate WLST domain-creation script
+  template:
+    src: create_domain.py.j2
+    dest: "{{ installer_stage }}/create_domain.py"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
+- name: Run WLST to create domain
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ mw_home }}/oracle_common/common/bin/wlst.sh
+    {{ installer_stage }}/create_domain.py
+  register: wlst_create_result
+  failed_when: >
+    wlst_create_result.rc != 0 and
+    'Domain Created Successfully' not in wlst_create_result.stdout
+  changed_when: >
+    'Domain Created Successfully' in wlst_create_result.stdout
+  args:
+    creates: "{{ domain_home }}/config/config.xml"
+  environment:
+    JAVA_HOME: "{{ jdk_home }}"
+    MW_HOME: "{{ mw_home }}"
+
+- name: Show WLST output
+  debug:
+    var: wlst_create_result.stdout_lines
+
+- name: Create Admin Server start script
+  template:
+    src: startAdminServer.sh.j2
+    dest: "{{ domain_home }}/startAdminServer.sh"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0750'
+
+- name: Install Admin Server systemd unit
+  template:
+    src: wls-admin.service.j2
+    dest: /etc/systemd/system/wls-admin.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Enable and start Admin Server service
+  service:
+    name: wls-admin
+    state: started
+    enabled: true
+
+- name: Wait for Admin Server to be listening on port {{ admin_server_port }}
+  wait_for:
+    host: "{{ admin_server_host }}"
+    port: "{{ admin_server_port }}"
+    timeout: 180
+    state: started
+
+- name: Generate WLST JMS configuration script
+  template:
+    src: configure_jms.py.j2
+    dest: "{{ installer_stage }}/configure_jms.py"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
+- name: Configure JMS module, subdeployment, CF and queue via WLST
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ mw_home }}/oracle_common/common/bin/wlst.sh
+    {{ installer_stage }}/configure_jms.py
+  register: jms_config_result
+  changed_when: true
+  environment:
+    JAVA_HOME: "{{ jdk_home }}"
+    MW_HOME: "{{ mw_home }}"
+
+- name: Show JMS config output
+  debug:
+    var: jms_config_result.stdout_lines

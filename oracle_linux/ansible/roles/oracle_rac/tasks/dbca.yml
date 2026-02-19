@@ -1,0 +1,85 @@
+---
+# =============================================================================
+# oracle_rac/tasks/dbca.yml
+# Create the Oracle RAC database using DBCA (silent)
+# Runs on node1 only – DBCA configures node2 automatically.
+# =============================================================================
+
+- name: Generate DBCA response file
+  template:
+    src: dbca_response.j2
+    dest: "{{ installer_stage }}/dbca.rsp"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
+- name: Create Oracle RAC database using DBCA (silent)
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ oracle_home }}/bin/dbca
+    -silent
+    -createDatabase
+    -responseFile {{ installer_stage }}/dbca.rsp
+  register: dbca_result
+  failed_when: >
+    dbca_result.rc != 0 and
+    'Database creation complete' not in dbca_result.stdout
+  changed_when: >
+    'Database creation complete' in dbca_result.stdout
+  async: 7200
+  poll: 60
+
+- name: Show DBCA output
+  debug:
+    var: dbca_result.stdout_lines
+
+- name: Verify RAC instances are running
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    export ORACLE_SID={{ oracle_db_name }}1
+    {{ oracle_home }}/bin/srvctl status database -d {{ oracle_db_name }}
+  register: srvctl_status
+  changed_when: false
+
+- name: Show database status
+  debug:
+    var: srvctl_status.stdout_lines
+
+- name: Enable archive log mode
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    export ORACLE_SID={{ oracle_db_name }}1
+    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
+    SHUTDOWN IMMEDIATE;
+    STARTUP MOUNT;
+    ALTER DATABASE ARCHIVELOG;
+    ALTER DATABASE OPEN;
+    ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} OPEN;
+    ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} SAVE STATE;
+    EXIT;
+    EOF
+  register: archivelog_result
+  changed_when: "'Database altered' in archivelog_result.stdout"
+
+- name: Create Oracle Net listener (if not already configured by GI)
+  become_user: "{{ grid_user }}"
+  command: >
+    {{ grid_home }}/bin/srvctl add listener
+    -l LISTENER
+    -p 1521
+  register: listener_add
+  failed_when: >
+    listener_add.rc != 0 and
+    'already exists' not in listener_add.stderr
+  changed_when: listener_add.rc == 0
+
+- name: Start listener
+  become_user: "{{ grid_user }}"
+  command: "{{ grid_home }}/bin/srvctl start listener"
+  register: listener_start
+  failed_when: >
+    listener_start.rc != 0 and
+    'already running' not in listener_start.stderr
+  changed_when: listener_start.rc == 0

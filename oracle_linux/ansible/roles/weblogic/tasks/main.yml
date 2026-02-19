@@ -1,0 +1,21 @@
+---
+# =============================================================================
+# weblogic/tasks/main.yml – orchestrates WLS 14.1.2 install
+# =============================================================================
+
+- name: Install JDK 17
+  import_tasks: jdk_install.yml
+
+- name: Install WebLogic 14.1.2
+  import_tasks: wls_install.yml
+
+- name: Create and configure WLS domain (Admin server only)
+  import_tasks: domain_create.yml
+  when: inventory_hostname in groups['wls_admin']
+
+- name: Configure and start Managed Servers
+  import_tasks: managed_servers.yml
+  when: inventory_hostname in groups['wls_managed']
+
+- name: Configure Node Manager on all WLS nodes
+  import_tasks: node_manager.yml

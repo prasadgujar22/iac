@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# oracle_rac/tasks/asm_disks.yml
+# Label and register ASM disks with oracleasm on every RAC node
+# =============================================================================
+
+- name: Wipe partition table from DATA disk
+  command: wipefs -a {{ asm_data_disk }}
+  changed_when: false
+
+- name: Wipe partition table from FRA disk
+  command: wipefs -a {{ asm_fra_disk }}
+  changed_when: false
+
+- name: Zero out the first MB of DATA disk (ensure clean state)
+  command: dd if=/dev/zero of={{ asm_data_disk }} bs=1M count=1
+  changed_when: false
+
+- name: Zero out the first MB of FRA disk
+  command: dd if=/dev/zero of={{ asm_fra_disk }} bs=1M count=1
+  changed_when: false
+
+- name: Create ASM disk label for DATA (run once – idempotent)
+  command: /usr/sbin/oracleasm createdisk DATA {{ asm_data_disk }}
+  register: asm_create_data
+  failed_when: >
+    asm_create_data.rc != 0 and
+    'already labeled' not in asm_create_data.stderr
+  changed_when: asm_create_data.rc == 0
+
+- name: Create ASM disk label for FRA
+  command: /usr/sbin/oracleasm createdisk FRA {{ asm_fra_disk }}
+  register: asm_create_fra
+  failed_when: >
+    asm_create_fra.rc != 0 and
+    'already labeled' not in asm_create_fra.stderr
+  changed_when: asm_create_fra.rc == 0
+
+- name: Scan and list ASM disks (verify visibility)
+  command: /usr/sbin/oracleasm scandisks
+  changed_when: false
+
+- name: List discovered ASM disks
+  command: /usr/sbin/oracleasm listdisks
+  register: asm_listdisks
+  changed_when: false
+
+- name: Show ASM disk list
+  debug:
+    var: asm_listdisks.stdout_lines

@@ -1,0 +1,18 @@
+# Ansible vault passwords
+.vault_pass
+*.vaultpass
+
+# Installer media (too large for git)
+roles/*/files/*.zip
+roles/*/files/*.jar
+roles/*/files/*.rpm
+
+# Fact cache
+/tmp/ansible_facts_cache/
+
+# Retry files
+*.retry
+
+# Python bytecode
+__pycache__/
+*.pyc

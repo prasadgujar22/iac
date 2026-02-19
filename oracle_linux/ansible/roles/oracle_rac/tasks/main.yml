@@ -1,0 +1,20 @@
+---
+# =============================================================================
+# oracle_rac/tasks/main.yml – orchestrates the full RAC 19c install
+# =============================================================================
+
+- name: Pre-install OS configuration for RAC
+  import_tasks: pre_install.yml
+
+- name: Configure ASM disks
+  import_tasks: asm_disks.yml
+
+- name: Install Oracle Grid Infrastructure
+  import_tasks: grid_install.yml
+
+- name: Install Oracle Database software
+  import_tasks: db_install.yml
+
+- name: Create RAC database (run on node1 only)
+  import_tasks: dbca.yml
+  when: inventory_hostname == oracle_node1_hostname

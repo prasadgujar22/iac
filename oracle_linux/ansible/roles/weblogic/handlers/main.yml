@@ -1,0 +1,14 @@
+---
+- name: Reload systemd
+  systemd:
+    daemon_reload: true
+
+- name: Restart Admin Server
+  service:
+    name: wls-admin
+    state: restarted
+
+- name: Restart Node Manager
+  service:
+    name: wls-nodemanager
+    state: restarted

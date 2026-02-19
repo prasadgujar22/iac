@@ -1,0 +1,45 @@
+---
+# =============================================================================
+# Oracle WebLogic 14.1.2 – group variables for [wls_nodes]
+# =============================================================================
+
+# --- JDK 17 ---
+jdk_home: /u01/app/jdk17
+
+# --- WebLogic middleware home ---
+mw_home: /u01/app/oracle/middleware
+wls_home: "{{ mw_home }}/wlserver"
+
+# --- Domain settings ---
+domain_name: jms_ha_domain
+domain_home: /u01/app/oracle/domains/jms_ha_domain
+domain_logs: /u01/app/oracle/domains/jms_ha_domain/logs
+
+# --- Admin server ---
+admin_server_name: AdminServer
+admin_server_host: 192.168.29.122
+admin_server_port: 7001
+admin_server_ssl_port: 7002
+
+# --- Managed servers ---
+managed_server_port: 7003
+managed_server_ssl_port: 7004
+managed_servers:
+  - name: ms1
+    host: 192.168.29.123
+  - name: ms2
+    host: 192.168.29.124
+
+# --- Cluster ---
+cluster_name: JMSCluster
+
+# --- WebLogic credentials (override with ansible-vault in production) ---
+wls_admin_user: weblogic
+wls_admin_password: Weblogic_Passw0rd1
+
+# --- JMS module ---
+jms_module_name: JMSModule
+jms_subdeployment_name: JMSSubDep
+jms_connection_factory_jndi: jms/JMSConnectionFactory
+jms_queue_name: JMSQueue
+jms_queue_jndi: jms/JMSQueue

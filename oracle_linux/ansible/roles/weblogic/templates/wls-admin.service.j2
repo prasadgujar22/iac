@@ -1,0 +1,20 @@
+[Unit]
+Description=Oracle WebLogic Admin Server – {{ domain_name }}
+After=network.target
+
+[Service]
+Type=simple
+User={{ oracle_user }}
+Group={{ oracle_group }}
+Environment=JAVA_HOME={{ jdk_home }}
+Environment=MW_HOME={{ mw_home }}
+Environment=DOMAIN_HOME={{ domain_home }}
+WorkingDirectory={{ domain_home }}
+ExecStart={{ domain_home }}/startAdminServer.sh
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:{{ domain_logs }}/AdminServer.log
+StandardError=append:{{ domain_logs }}/AdminServer.err
+
+[Install]
+WantedBy=multi-user.target

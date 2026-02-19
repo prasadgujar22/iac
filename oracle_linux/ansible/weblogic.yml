@@ -1,0 +1,81 @@
+---
+# =============================================================================
+# weblogic.yml – Oracle WebLogic Server 14.1.2 cluster setup
+#
+# Run order:
+#   1. Common OS pre-reqs on all WLS nodes (parallel)
+#   2. JDK 17 + WLS software install (all nodes in parallel)
+#   3. Domain creation on Admin Server
+#   4. Node Manager start on all nodes
+#   5. Managed Server start on managed nodes
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini weblogic.yml
+#   ansible-playbook -i inventory/hosts.ini weblogic.yml --tags wls_install
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Phase 1: OS pre-requisites (all WLS nodes)
+# ---------------------------------------------------------------------------
+- name: Common OS configuration for all WLS nodes
+  hosts: wls_nodes
+  gather_facts: true
+  become: true
+  roles:
+    - role: common
+      tags: [common, pre_install]
+
+# ---------------------------------------------------------------------------
+# Phase 2: Install JDK 17 + WebLogic 14.1.2 software (all nodes, parallel)
+# ---------------------------------------------------------------------------
+- name: Install JDK 17 and WebLogic 14.1.2
+  hosts: wls_nodes
+  gather_facts: false
+  become: true
+  tags: [wls_install]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: jdk_install
+    - import_role:
+        name: weblogic
+        tasks_from: wls_install
+
+# ---------------------------------------------------------------------------
+# Phase 3: Create domain and configure JMS (Admin Server only)
+# ---------------------------------------------------------------------------
+- name: Create WLS domain and configure JMS
+  hosts: wls_admin
+  gather_facts: false
+  become: true
+  tags: [domain_create, jms_config]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: domain_create
+
+# ---------------------------------------------------------------------------
+# Phase 4: Start Node Manager on all WLS nodes
+# ---------------------------------------------------------------------------
+- name: Start Node Manager
+  hosts: wls_nodes
+  gather_facts: false
+  become: true
+  tags: [node_manager]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: node_manager
+
+# ---------------------------------------------------------------------------
+# Phase 5: Start Managed Servers
+# ---------------------------------------------------------------------------
+- name: Start Managed Servers
+  hosts: wls_managed
+  gather_facts: false
+  become: true
+  tags: [managed_servers]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: managed_servers

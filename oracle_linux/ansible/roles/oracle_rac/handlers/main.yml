@@ -1,0 +1,9 @@
+---
+- name: Restart ASM
+  become_user: "{{ grid_user }}"
+  command: "{{ grid_home }}/bin/srvctl restart asm"
+  listen: "restart asm"
+
+- name: Restart cluster
+  command: "{{ grid_home }}/bin/crsctl stop cluster -all && {{ grid_home }}/bin/crsctl start cluster -all"
+  listen: "restart cluster"

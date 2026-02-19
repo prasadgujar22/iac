@@ -1,0 +1,80 @@
+---
+# =============================================================================
+# weblogic/tasks/jdk_install.yml
+# Install Oracle JDK 17 (required for WebLogic 14.1.2)
+# =============================================================================
+
+- name: Create oracle user (WLS nodes)
+  user:
+    name: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    groups: "{{ oracle_groups | join(',') }}"
+    shell: /bin/bash
+    home: /home/{{ oracle_user }}
+    create_home: true
+
+- name: Create directory tree for WLS
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+  loop:
+    - "{{ oracle_base }}"
+    - "{{ mw_home }}"
+    - "{{ jdk_home }}"
+    - "{{ installer_stage }}"
+
+- name: Copy JDK 17 RPM to staging area
+  copy:
+    src: "{{ jdk_rpm }}"
+    dest: "{{ installer_stage }}/{{ jdk_rpm }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install JDK 17 RPM
+  dnf:
+    name: "{{ installer_stage }}/{{ jdk_rpm }}"
+    state: present
+    disable_gpg_check: true
+
+- name: Detect installed JDK 17 home
+  command: "java -XshowSettings:all -version"
+  register: jdk_version_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Set JAVA_HOME fact from installed RPM location
+  set_fact:
+    java_home: "/usr/lib/jvm/jdk-17-oracle-x64"
+
+- name: Create symlink {{ jdk_home }} → installed JDK
+  file:
+    src: "{{ java_home }}"
+    dest: "{{ jdk_home }}"
+    state: link
+    force: true
+
+- name: Set oracle user bash profile with JDK
+  copy:
+    dest: /home/{{ oracle_user }}/.bash_profile
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+    content: |
+      export JAVA_HOME={{ jdk_home }}
+      export MW_HOME={{ mw_home }}
+      export WLS_HOME={{ wls_home }}
+      export PATH=$JAVA_HOME/bin:$MW_HOME/oracle_common/common/bin:$PATH:$HOME/.local/bin:$HOME/bin
+
+- name: Verify Java version
+  become_user: "{{ oracle_user }}"
+  command: "{{ jdk_home }}/bin/java -version"
+  register: java_ver
+  changed_when: false
+
+- name: Show Java version
+  debug:
+    var: java_ver.stderr_lines

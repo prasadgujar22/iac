@@ -1,0 +1,55 @@
+---
+# =============================================================================
+# weblogic/tasks/wls_install.yml
+# Install Oracle WebLogic Server 14.1.2 (silent, using fmw installer jar)
+# =============================================================================
+
+- name: Copy WLS installer jar to staging area
+  copy:
+    src: "{{ wls_installer_jar }}"
+    dest: "{{ installer_stage }}/{{ wls_installer_jar }}"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+
+- name: Generate WLS silent install response file
+  template:
+    src: wls_install_response.j2
+    dest: "{{ installer_stage }}/wls_install.rsp"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
+- name: Run WLS silent installer
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ jdk_home }}/bin/java
+    -jar {{ installer_stage }}/{{ wls_installer_jar }}
+    -silent
+    -responseFile {{ installer_stage }}/wls_install.rsp
+    -invPtrLoc {{ oracle_inventory }}/oraInst.loc
+  register: wls_install_result
+  failed_when: >
+    wls_install_result.rc != 0 and
+    'Installation Successful' not in wls_install_result.stdout
+  changed_when: >
+    'Installation Successful' in wls_install_result.stdout
+  args:
+    creates: "{{ wls_home }}/server/bin/startWebLogic.sh"
+
+- name: Show WLS installer output
+  debug:
+    var: wls_install_result.stdout_lines
+
+- name: Verify WLS version
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ jdk_home }}/bin/java
+    -cp {{ wls_home }}/server/lib/weblogic.jar
+    weblogic.version
+  register: wls_version_out
+  changed_when: false
+
+- name: Show WLS version
+  debug:
+    var: wls_version_out.stdout_lines

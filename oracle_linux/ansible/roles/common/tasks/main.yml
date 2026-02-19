@@ -1,0 +1,209 @@
+---
+# =============================================================================
+# common/tasks/main.yml
+# Pre-requisites applied to every host (RAC nodes + WLS nodes)
+# =============================================================================
+
+- name: Set hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Populate /etc/hosts for all cluster members
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED - cluster hosts"
+    block: |
+      # --- RAC public ---
+      192.168.29.120  rac-node1.lab.local  rac-node1
+      192.168.29.121  rac-node2.lab.local  rac-node2
+      # --- RAC VIP ---
+      192.168.29.130  rac-node1-vip.lab.local  rac-node1-vip
+      192.168.29.131  rac-node2-vip.lab.local  rac-node2-vip
+      # --- SCAN ---
+      192.168.29.140  rac-scan.lab.local  rac-scan
+      # --- WLS ---
+      192.168.29.122  wls-admin.lab.local  wls-admin
+      192.168.29.123  wls-node1.lab.local  wls-node1
+      192.168.29.124  wls-node2.lab.local  wls-node2
+
+- name: Disable firewalld
+  service:
+    name: firewalld
+    state: stopped
+    enabled: false
+  ignore_errors: true
+
+- name: Set SELinux to permissive
+  selinux:
+    policy: targeted
+    state: permissive
+
+- name: Install common prerequisite packages
+  dnf:
+    name:
+      - oracle-database-preinstall-19c
+      - ksh
+      - bc
+      - binutils
+      - elfutils-libelf
+      - elfutils-libelf-devel
+      - fontconfig-devel
+      - glibc
+      - glibc-devel
+      - libaio
+      - libaio-devel
+      - libgcc
+      - librdmacm-devel
+      - libstdc++
+      - libstdc++-devel
+      - libxcb
+      - make
+      - net-tools
+      - nfs-utils
+      - smartmontools
+      - sysstat
+      - targetcli
+      - unzip
+      - zip
+    state: present
+
+- name: Create oracle OS groups
+  group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ oracle_groups }}"
+
+- name: Create grid OS group
+  group:
+    name: "{{ grid_group }}"
+    state: present
+
+- name: Create oracle user
+  user:
+    name: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    groups: "{{ oracle_groups | join(',') }}"
+    shell: /bin/bash
+    home: /home/{{ oracle_user }}
+    create_home: true
+
+- name: Create grid user
+  user:
+    name: "{{ grid_user }}"
+    group: "{{ grid_group }}"
+    groups: "oinstall,asmadmin,asmdba,asmoper,dba"
+    shell: /bin/bash
+    home: /home/{{ grid_user }}
+    create_home: true
+
+- name: Create base directory tree
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+  loop:
+    - "{{ oracle_base }}"
+    - "{{ oracle_inventory }}"
+    - "{{ installer_stage }}"
+
+- name: Create grid base directory
+  file:
+    path: "{{ grid_base }}"
+    state: directory
+    owner: "{{ grid_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+
+- name: Set kernel parameters (sysctl)
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - { key: "kernel.shmmax",         value: "4398046511104" }
+    - { key: "kernel.shmall",         value: "1073741824"    }
+    - { key: "kernel.shmmni",         value: "4096"          }
+    - { key: "kernel.sem",            value: "250 32000 100 128" }
+    - { key: "net.ipv4.ip_local_port_range", value: "9000 65500" }
+    - { key: "net.core.rmem_default", value: "262144"        }
+    - { key: "net.core.rmem_max",     value: "4194304"       }
+    - { key: "net.core.wmem_default", value: "262144"        }
+    - { key: "net.core.wmem_max",     value: "1048576"       }
+    - { key: "fs.aio-max-nr",         value: "1048576"       }
+    - { key: "fs.file-max",           value: "6815744"       }
+    - { key: "vm.swappiness",         value: "10"            }
+    - { key: "vm.dirty_background_ratio", value: "3"        }
+    - { key: "vm.dirty_ratio",        value: "15"            }
+
+- name: Set PAM limits for oracle user
+  pam_limits:
+    domain: "{{ oracle_user }}"
+    limit_type: "{{ item.type }}"
+    limit_item: "{{ item.item }}"
+    value: "{{ item.value }}"
+  loop:
+    - { type: soft, item: nofile,   value: "1024"    }
+    - { type: hard, item: nofile,   value: "65536"   }
+    - { type: soft, item: nproc,    value: "2047"    }
+    - { type: hard, item: nproc,    value: "16384"   }
+    - { type: soft, item: stack,    value: "10240"   }
+    - { type: hard, item: stack,    value: "32768"   }
+    - { type: soft, item: memlock,  value: "3145728" }
+    - { type: hard, item: memlock,  value: "3145728" }
+
+- name: Set oracle user bash profile
+  copy:
+    dest: /home/{{ oracle_user }}/.bash_profile
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+    content: |
+      # Oracle env
+      export ORACLE_BASE={{ oracle_base }}
+      export ORACLE_HOME={{ oracle_home | default('') }}
+      export ORACLE_SID={{ oracle_db_name | default('') }}1
+      export NLS_DATE_FORMAT="DD-MON-YYYY HH24:MI:SS"
+      export PATH=$ORACLE_HOME/bin:$PATH:$HOME/.local/bin:$HOME/bin
+      export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
+      export CLASSPATH=$ORACLE_HOME/jlib:$ORACLE_HOME/rdbms/jlib
+  when: oracle_home is defined
+
+- name: Set grid user bash profile
+  copy:
+    dest: /home/{{ grid_user }}/.bash_profile
+    owner: "{{ grid_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+    content: |
+      # Grid env
+      export ORACLE_BASE={{ grid_base }}
+      export ORACLE_HOME={{ grid_home | default('') }}
+      export ORACLE_SID=+ASM{{ node_number | default('1') }}
+      export PATH=$ORACLE_HOME/bin:$PATH:$HOME/.local/bin:$HOME/bin
+      export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
+  when: grid_home is defined
+
+- name: Disable transparent hugepages (runtime)
+  shell: |
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag
+  changed_when: false
+
+- name: Persist transparent hugepage disable via rc.local
+  blockinfile:
+    path: /etc/rc.d/rc.local
+    marker: "# {mark} ANSIBLE MANAGED - disable THP"
+    block: |
+      echo never > /sys/kernel/mm/transparent_hugepage/enabled
+      echo never > /sys/kernel/mm/transparent_hugepage/defrag
+    create: true
+    mode: '0755'
+
+- name: Enable chronyd (time sync is critical for RAC)
+  service:
+    name: chronyd
+    state: started
+    enabled: true
