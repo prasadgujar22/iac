@@ -119,12 +119,21 @@
     src: wls-managed.service.j2
     dest: "/etc/systemd/system/wls-managed-{{ inventory_hostname }}.service"
     mode: '0644'
-  notify: Reload systemd
+
+# Reload systemd immediately after deploying the unit file so that the
+# correct ExecStart (startManagedServer.sh) is visible to systemd before
+# we try to start the service.  Using notify/handler is insufficient here:
+# handlers only run on successful play completion, and every prior run of
+# this playbook has failed at wait_for, leaving systemd with a stale
+# in-memory unit definition that still pointed to startManagedWebLogic.sh.
+- name: Reload systemd daemon after deploying managed server unit
+  systemd:
+    daemon_reload: true
 
 - name: Enable and start Managed Server service
-  service:
+  systemd:
     name: "wls-managed-{{ inventory_hostname }}"
-    state: started
+    state: restarted
     enabled: true
 
 - block:
