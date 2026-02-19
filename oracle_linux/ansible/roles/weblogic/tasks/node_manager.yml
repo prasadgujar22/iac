@@ -54,15 +54,53 @@
   systemd:
     daemon_reload: true
 
-- name: Enable and start Node Manager
-  service:
-    name: wls-nodemanager
-    state: started
-    enabled: true
+- block:
+    - name: Enable and start Node Manager
+      service:
+        name: wls-nodemanager
+        state: started
+        enabled: true
 
-- name: Wait for Node Manager port 5556
-  wait_for:
-    host: "{{ ansible_host }}"
-    port: 5556
-    timeout: 60
-    state: started
+    - name: Wait for Node Manager port 5556
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 5556
+        timeout: 90
+        state: started
+
+  rescue:
+    # Dump enough context so the next run failure is immediately diagnosable.
+    - name: Collect Node Manager journal (last 80 lines)
+      command: journalctl -u wls-nodemanager -n 80 --no-pager
+      register: _nm_journal
+      changed_when: false
+
+    - name: Show Node Manager journal
+      debug:
+        var: _nm_journal.stdout_lines
+
+    - name: Collect Node Manager log file (last 50 lines)
+      command: "tail -50 {{ domain_logs }}/nodemanager.log"
+      register: _nm_log
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show Node Manager log
+      debug:
+        var: _nm_log.stdout_lines
+
+    - name: Collect Node Manager error log (last 30 lines)
+      command: "tail -30 {{ domain_logs }}/nodemanager.err"
+      register: _nm_err
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show Node Manager error log
+      debug:
+        var: _nm_err.stdout_lines
+
+    - name: Re-raise failure
+      fail:
+        msg: >-
+          Node Manager failed to start on {{ inventory_hostname }}.
+          Review the diagnostic output above to identify the root cause.
