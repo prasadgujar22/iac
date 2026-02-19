@@ -27,7 +27,7 @@ grid_base: /u01/app/grid
 oracle_inventory: /u01/app/oraInventory
 
 # --- Installer staging area (copy your zip files here before running) ---
-installer_stage: /opt/oracle/stage
+installer_stage: /home/prasad/iac/oracle_linux/ansible/roles/common/files
 
 # --- Software install media (place these on the control node or an NFS share) ---
 # Download from Oracle eDelivery / MOS before running playbooks
