@@ -34,7 +34,7 @@ installer_stage: /home/prasad/iac/oracle_linux/ansible/roles/common/files
 oracle_gi_zip: LINUX.X64_193000_grid_home.zip       # Oracle GI 19c
 oracle_db_zip: LINUX.X64_193000_db_home.zip          # Oracle DB 19c
 jdk_rpm: jdk-17_linux-x64_bin.rpm                    # JDK 17 RPM from Oracle
-wls_installer_jar: fmw_14.1.2.0.0_wls_lite.jar       # WLS 14.1.2 silent installer
+wls_installer_jar: fmw_14.1.2.0.0_wls.jar            # WLS 14.1.2 silent installer
 
 # --- Patch (optional, set to '' to skip) ---
 oracle_opatch_zip: ''         # e.g. p6880880_190000_Linux-x86-64.zip

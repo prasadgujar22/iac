@@ -32,7 +32,7 @@ adjust `installer_stage` in `group_vars/all.yml`):
 | `LINUX.X64_193000_grid_home.zip` | Oracle eDelivery / MOS |
 | `LINUX.X64_193000_db_home.zip` | Oracle eDelivery / MOS |
 | `jdk-17_linux-x64_bin.rpm` | oracle.com/java |
-| `fmw_14.1.2.0.0_wls_lite.jar` | Oracle eDelivery / MOS |
+| `fmw_14.1.2.0.0_wls.jar` | Oracle eDelivery / MOS |
 
 ### 3. SSH access
 The Terraform template already injects the SSH public key for `prasad`.
