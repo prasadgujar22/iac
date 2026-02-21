@@ -4,27 +4,23 @@
 # RAC-specific OS pre-requisites (run on ALL RAC nodes)
 # =============================================================================
 
-# Oracle Linux ships with the signing key at /etc/pki/rpm-gpg/RPM-GPG-KEY-oracle.
-# Using the local path avoids an outbound HTTPS fetch for the key on every dnf
-# run; the internet gpgkey URL causes the repo to appear "empty" when the key
-# download times out (which surfaces as "No package X available" rather than a
-# network error).  The baseurl still reaches yum.oracle.com for the packages
-# themselves – that works because package downloads get retried, whereas the key
-# fetch does not.
-- name: Configure Oracle Linux 8 BaseOS repository
+# Nodes are Oracle Linux 9.  The signing key ships with the OS at the path
+# below; using it avoids an outbound HTTPS fetch for the key on every dnf run
+# (a timed-out key fetch surfaces silently as "No package X available").
+- name: Configure Oracle Linux 9 BaseOS repository
   yum_repository:
-    name: ol8_baseos_latest
-    description: "Oracle Linux 8 BaseOS Latest (x86_64)"
-    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/x86_64/"
+    name: ol9_baseos_latest
+    description: "Oracle Linux 9 BaseOS Latest (x86_64)"
+    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/x86_64/"
     gpgcheck: yes
     gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
     enabled: yes
 
-- name: Configure Oracle Linux 8 UEK R6 repository
+- name: Configure Oracle Linux 9 UEK R7 repository
   yum_repository:
-    name: ol8_UEKR6
-    description: "Oracle Linux 8 UEK R6 (x86_64)"
-    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL8/UEKR6/x86_64/"
+    name: ol9_UEKR7
+    description: "Oracle Linux 9 UEK R7 (x86_64)"
+    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL9/UEKR7/x86_64/"
     gpgcheck: yes
     gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
     enabled: yes
@@ -40,10 +36,10 @@
 # copied to each node and installed (no GPG check needed – the key URL is
 # often unreachable on lab networks).
 #
-#   oracleasm-support-*.el8.x86_64.rpm   ← /usr/sbin/oracleasm CLI (required)
-#   oracleasmlib-*.el8.x86_64.rpm        ← liboracleasm shared library
+#   oracleasm-support-*.el9.x86_64.rpm   ← /usr/sbin/oracleasm CLI (required)
+#   oracleasmlib-*.el9.x86_64.rpm        ← liboracleasm shared library
 #
-# Both are on yum.oracle.com/repo/OracleLinux/OL8/UEKR6/x86_64/
+# Both are on yum.oracle.com/repo/OracleLinux/OL9/UEKR7/x86_64/
 # If no local files are present the tasks fall back to the yum repo.
 - name: Gather locally provided ASM RPM paths
   set_fact:
