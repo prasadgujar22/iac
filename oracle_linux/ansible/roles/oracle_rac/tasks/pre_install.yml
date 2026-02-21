@@ -4,27 +4,23 @@
 # RAC-specific OS pre-requisites (run on ALL RAC nodes)
 # =============================================================================
 
-# Oracle Linux ships with the signing key at /etc/pki/rpm-gpg/RPM-GPG-KEY-oracle.
-# Using the local path avoids an outbound HTTPS fetch for the key on every dnf
-# run; the internet gpgkey URL causes the repo to appear "empty" when the key
-# download times out (which surfaces as "No package X available" rather than a
-# network error).  The baseurl still reaches yum.oracle.com for the packages
-# themselves – that works because package downloads get retried, whereas the key
-# fetch does not.
-- name: Configure Oracle Linux 8 BaseOS repository
+# Nodes are Oracle Linux 9.  The signing key ships with the OS at the path
+# below; using it avoids an outbound HTTPS fetch for the key on every dnf run
+# (a timed-out key fetch surfaces silently as "No package X available").
+- name: Configure Oracle Linux 9 BaseOS repository
   yum_repository:
-    name: ol8_baseos_latest
-    description: "Oracle Linux 8 BaseOS Latest (x86_64)"
-    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/x86_64/"
+    name: ol9_baseos_latest
+    description: "Oracle Linux 9 BaseOS Latest (x86_64)"
+    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/x86_64/"
     gpgcheck: yes
     gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
     enabled: yes
 
-- name: Configure Oracle Linux 8 UEK R6 repository
+- name: Configure Oracle Linux 9 UEK R7 repository
   yum_repository:
-    name: ol8_UEKR6
-    description: "Oracle Linux 8 UEK R6 (x86_64)"
-    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL8/UEKR6/x86_64/"
+    name: ol9_UEKR7
+    description: "Oracle Linux 9 UEK R7 (x86_64)"
+    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL9/UEKR7/x86_64/"
     gpgcheck: yes
     gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
     enabled: yes
@@ -33,8 +29,44 @@
   dnf:
     name:
       - oracle-database-preinstall-19c
-      - oracleasm-support
     state: present
+
+# ── Local ASM RPM override ────────────────────────────────────────────────────
+# Drop one or both RPMs into  roles/oracle_rac/files/  and they will be
+# copied to each node and installed (no GPG check needed – the key URL is
+# often unreachable on lab networks).
+#
+#   oracleasm-support-*.el9.x86_64.rpm   ← /usr/sbin/oracleasm CLI (required)
+#   oracleasmlib-*.el9.x86_64.rpm        ← liboracleasm shared library
+#
+# Both are on yum.oracle.com/repo/OracleLinux/OL9/UEKR7/x86_64/
+# If no local files are present the tasks fall back to the yum repo.
+- name: Gather locally provided ASM RPM paths
+  set_fact:
+    local_asm_rpms: >-
+      {{ lookup('fileglob', role_path + '/files/oracleasm*.rpm', wantlist=True)
+       + lookup('fileglob', role_path + '/files/oracleasmlib*.rpm', wantlist=True) }}
+
+- name: Copy local ASM RPMs to remote nodes
+  copy:
+    src: "{{ item }}"
+    dest: "/tmp/{{ item | basename }}"
+    mode: '0644'
+  loop: "{{ local_asm_rpms }}"
+  when: local_asm_rpms | length > 0
+
+- name: Install local ASM RPMs
+  dnf:
+    name: "{{ local_asm_rpms | map('basename') | map('regex_replace', '^', '/tmp/') | list }}"
+    state: present
+    disable_gpg_check: true
+  when: local_asm_rpms | length > 0
+
+- name: Install oracleasm-support from yum (fallback – used when no local RPMs)
+  dnf:
+    name: oracleasm-support
+    state: present
+  when: local_asm_rpms | length == 0
 
 # kmod-oracleasm is only required on RHCK (Red Hat Compatible Kernel).
 # On UEK R6 the oracleasm module is compiled into the kernel – the RPM
