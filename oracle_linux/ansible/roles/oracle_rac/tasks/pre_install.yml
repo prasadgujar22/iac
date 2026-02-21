@@ -36,6 +36,37 @@
 # cvuqdisk is NOT in any public repo – it is extracted from the GI zip below.
 
 # --- cvuqdisk: extract from GI installer media and push to nodes ----------
+# Pre-check: give a clear error before attempting unzip if zip is missing.
+- name: Verify Oracle GI zip exists on control node (early check for cvuqdisk)
+  delegate_to: localhost
+  become: false
+  run_once: true
+  stat:
+    path: "{{ local_installer_src }}/{{ oracle_gi_zip }}"
+  register: gi_zip_early_stat
+
+- name: Fail early if Oracle GI zip is missing
+  run_once: true
+  fail:
+    msg: |
+      Oracle GI installer not found on the Ansible control node at:
+        {{ local_installer_src }}/{{ oracle_gi_zip }}
+
+      Download LINUX.X64_193000_grid_home.zip from Oracle eDelivery / MOS
+      and place it in {{ local_installer_src }}/
+      Or override the path:  -e local_installer_src=/your/media/path
+  when: not gi_zip_early_stat.stat.exists
+
+- name: Check if cvuqdisk RPM is already extracted on control node
+  delegate_to: localhost
+  become: false
+  run_once: true
+  find:
+    paths: /tmp/cvuqdisk_extract
+    patterns: "cvuqdisk*.rpm"
+  register: cvuqdisk_cached
+  failed_when: false
+
 - name: Extract cvuqdisk RPM from Grid Infrastructure zip (runs on control node)
   delegate_to: localhost
   become: false
@@ -44,8 +75,7 @@
     mkdir -p /tmp/cvuqdisk_extract &&
     unzip -j {{ local_installer_src }}/{{ oracle_gi_zip }}
     'cv/rpm/cvuqdisk*.rpm' -d /tmp/cvuqdisk_extract/
-  args:
-    creates: /tmp/cvuqdisk_extract
+  when: cvuqdisk_cached.matched | default(0) == 0
 
 - name: Copy cvuqdisk RPM to remote nodes
   copy:
