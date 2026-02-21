@@ -1,0 +1,11 @@
+# /etc/udev/rules.d/99-oracle-asmdevices.rules
+# Oracle ASM disk permissions – managed by Ansible (oracle_rac role)
+#
+# Sets ownership to {{ grid_user }}:asmadmin with mode 0660 on each boot
+# and whenever the device appears, so GI can discover raw block devices
+# without needing oracleasm/ASMLib packages.
+#
+# Reload:  udevadm control --reload-rules && udevadm trigger
+
+KERNEL=="{{ asm_data_disk | basename }}", SUBSYSTEM=="block", OWNER="{{ grid_user }}", GROUP="asmadmin", MODE="0660"
+KERNEL=="{{ asm_fra_disk | basename }}",  SUBSYSTEM=="block", OWNER="{{ grid_user }}", GROUP="asmadmin", MODE="0660"

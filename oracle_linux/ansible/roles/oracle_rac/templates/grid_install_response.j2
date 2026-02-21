@@ -40,9 +40,9 @@ oracle.install.asm.monitorPassword={{ oracle_asmsnmp_password }}
 oracle.install.asm.diskGroup.name={{ asm_data_diskgroup }}
 oracle.install.asm.diskGroup.redundancy={{ asm_redundancy }}
 oracle.install.asm.diskGroup.AUSize=4
-oracle.install.asm.diskGroup.disksWithFailureGroupNames=ORCL:DATA,
-oracle.install.asm.diskGroup.disks=ORCL:DATA
-oracle.install.asm.diskGroup.diskDiscoveryString=/dev/oracleasm/disks/*
+oracle.install.asm.diskGroup.disksWithFailureGroupNames={{ asm_data_disk }}:,
+oracle.install.asm.diskGroup.disks={{ asm_data_disk }}
+oracle.install.asm.diskGroup.diskDiscoveryString=/dev/sd[b-z]
 
 oracle.install.crs.rootconfig.executeRootScript=false
 
