@@ -183,31 +183,56 @@
     state: present
   loop: "{{ groups['rac_nodes'] }}"
 
-- name: Populate SSH known_hosts for oracle user (scan by hostname from each RAC node)
-  become_user: "{{ oracle_user }}"
-  shell: |
-    KNOWN=/home/{{ oracle_user }}/.ssh/known_hosts
-    touch "$KNOWN" && chmod 600 "$KNOWN"
-    for host in {{ groups['rac_nodes'] | join(' ') }}; do
-      ssh-keyscan -t rsa,ecdsa,ed25519 "$host" 2>/dev/null
-    done | sort -u >> "$KNOWN"
-    sort -u "$KNOWN" -o "$KNOWN"
-  changed_when: true
+# Read SSH host public keys directly from /etc/ssh/ on each node (no network scan needed).
+# hostvars lets every node see every other node's registered values.
+- name: Gather SSH host RSA key from each node
+  slurp:
+    src: /etc/ssh/ssh_host_rsa_key.pub
+  register: node_host_rsa_key
 
-- name: Populate SSH known_hosts for grid user (scan by hostname from each RAC node)
-  become_user: "{{ grid_user }}"
-  shell: |
-    KNOWN=/home/{{ grid_user }}/.ssh/known_hosts
-    touch "$KNOWN" && chmod 600 "$KNOWN"
-    for host in {{ groups['rac_nodes'] | join(' ') }}; do
-      ssh-keyscan -t rsa,ecdsa,ed25519 "$host" 2>/dev/null
-    done | sort -u >> "$KNOWN"
-    sort -u "$KNOWN" -o "$KNOWN"
-  changed_when: true
+- name: Gather SSH host ECDSA key from each node
+  slurp:
+    src: /etc/ssh/ssh_host_ecdsa_key.pub
+  register: node_host_ecdsa_key
+
+- name: Gather SSH host ed25519 key from each node
+  slurp:
+    src: /etc/ssh/ssh_host_ed25519_key.pub
+  register: node_host_ed25519_key
+
+# Write known_hosts for oracle user – one blockinfile block per cluster node so the
+# task is idempotent (re-runs overwrite the same marked section).
+- name: Write known_hosts for oracle user (hostname-keyed entries from /etc/ssh)
+  blockinfile:
+    path: /home/{{ oracle_user }}/.ssh/known_hosts
+    create: yes
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0600'
+    marker: "# {mark} ANSIBLE MANAGED host key {{ item }}"
+    block: |
+      {{ item }} {{ hostvars[item]['node_host_rsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ item }} {{ hostvars[item]['node_host_ecdsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ item }} {{ hostvars[item]['node_host_ed25519_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+  loop: "{{ groups['rac_nodes'] }}"
+
+- name: Write known_hosts for grid user (hostname-keyed entries from /etc/ssh)
+  blockinfile:
+    path: /home/{{ grid_user }}/.ssh/known_hosts
+    create: yes
+    owner: "{{ grid_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0600'
+    marker: "# {mark} ANSIBLE MANAGED host key {{ item }}"
+    block: |
+      {{ item }} {{ hostvars[item]['node_host_rsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ item }} {{ hostvars[item]['node_host_ecdsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ item }} {{ hostvars[item]['node_host_ed25519_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+  loop: "{{ groups['rac_nodes'] }}"
 
 - name: Verify passwordless SSH works for grid user (fail fast before GI installer)
   become_user: "{{ grid_user }}"
-  command: ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no {{ item }} hostname
+  command: ssh -o BatchMode=yes -o ConnectTimeout=10 {{ item }} hostname
   loop: "{{ groups['rac_nodes'] }}"
   changed_when: false
 
