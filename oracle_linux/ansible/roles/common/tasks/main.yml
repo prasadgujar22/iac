@@ -41,9 +41,9 @@
 - name: Grow root partition to fill physical disk
   shell: |
     PART="{{ root_partition.stdout | trim }}"
-    DISK=$(lsblk -no pkname "$PART")
-    PNUM=$(cat /sys/class/block/$(basename "$PART")/partition)
-    growpart "/dev/$DISK" "$PNUM"
+    PNUM=$(echo "$PART" | grep -oE '[0-9]+$')
+    DISK=$(echo "$PART" | sed 's/[0-9]*$//')
+    growpart "$DISK" "$PNUM"
   args:
     executable: /bin/bash
   register: growpart_result
