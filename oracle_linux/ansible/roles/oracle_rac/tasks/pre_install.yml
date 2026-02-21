@@ -31,52 +31,9 @@
       - oracle-database-preinstall-19c
     state: present
 
-# ── Local ASM RPM override ────────────────────────────────────────────────────
-# Drop one or both RPMs into  roles/oracle_rac/files/  and they will be
-# copied to each node and installed (no GPG check needed – the key URL is
-# often unreachable on lab networks).
-#
-#   oracleasm-support-*.el9.x86_64.rpm   ← /usr/sbin/oracleasm CLI (required)
-#   oracleasmlib-*.el9.x86_64.rpm        ← liboracleasm shared library
-#
-# Both are on yum.oracle.com/repo/OracleLinux/OL9/UEKR7/x86_64/
-# If no local files are present the tasks fall back to the yum repo.
-- name: Gather locally provided ASM RPM paths
-  set_fact:
-    local_asm_rpms: >-
-      {{ lookup('fileglob', role_path + '/files/oracleasm*.rpm', wantlist=True)
-       + lookup('fileglob', role_path + '/files/oracleasmlib*.rpm', wantlist=True) }}
-
-- name: Copy local ASM RPMs to remote nodes
-  copy:
-    src: "{{ item }}"
-    dest: "/tmp/{{ item | basename }}"
-    mode: '0644'
-  loop: "{{ local_asm_rpms }}"
-  when: local_asm_rpms | length > 0
-
-- name: Install local ASM RPMs
-  dnf:
-    name: "{{ local_asm_rpms | map('basename') | map('regex_replace', '^', '/tmp/') | list }}"
-    state: present
-    disable_gpg_check: true
-  when: local_asm_rpms | length > 0
-
-- name: Install oracleasm-support from yum (fallback – used when no local RPMs)
-  dnf:
-    name: oracleasm-support
-    state: present
-  when: local_asm_rpms | length == 0
-
-# kmod-oracleasm is only required on RHCK (Red Hat Compatible Kernel).
-# On UEK R6 the oracleasm module is compiled into the kernel – the RPM
-# simply does not exist in that repo, so we tolerate the failure.
-- name: Install kmod-oracleasm (RHCK only – skipped silently on UEK)
-  dnf:
-    name: kmod-oracleasm
-    state: present
-  ignore_errors: true
-  # cvuqdisk is NOT in any public repo – it is extracted from the GI zip below.
+# oracleasm-support is not in any public OL9 repo (requires ULN subscription).
+# ASM disk management is handled via udev rules instead – see asm_disks.yml.
+# cvuqdisk is NOT in any public repo – it is extracted from the GI zip below.
 
 # --- cvuqdisk: extract from GI installer media and push to nodes ----------
 - name: Extract cvuqdisk RPM from Grid Infrastructure zip (runs on control node)
@@ -101,24 +58,6 @@
     name: /tmp/cvuqdisk.rpm
     state: present
     disable_gpg_check: true
-
-- name: Enable oracleasm module
-  command: modprobe oracleasm
-  changed_when: false
-
-- name: Configure oracleasm
-  command: >
-    /usr/sbin/oracleasm configure -i
-    -u {{ grid_user }}
-    -g asmadmin
-    -b y
-    -s y
-  args:
-    creates: /etc/sysconfig/oracleasm
-
-- name: Initialize oracleasm
-  command: /usr/sbin/oracleasm init
-  changed_when: false
 
 - name: Set node-specific variables
   set_fact:

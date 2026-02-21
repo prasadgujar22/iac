@@ -1,7 +1,11 @@
 ---
 # =============================================================================
 # oracle_rac/tasks/asm_disks.yml
-# Label and register ASM disks with oracleasm on every RAC node
+# Prepare ASM disks using udev rules (no oracleasm/ASMLib required).
+#
+# udev sets ownership to grid:asmadmin with mode 0660 on every boot and
+# whenever the device appears.  GI discovers the disks via the raw device
+# path using diskDiscoveryString=/dev/sd[b-z].
 # =============================================================================
 
 - name: Wipe partition table from DATA disk
@@ -20,31 +24,34 @@
   command: dd if=/dev/zero of={{ asm_fra_disk }} bs=1M count=1
   changed_when: false
 
-- name: Create ASM disk label for DATA (run once – idempotent)
-  command: /usr/sbin/oracleasm createdisk DATA {{ asm_data_disk }}
-  register: asm_create_data
-  failed_when: >
-    asm_create_data.rc != 0 and
-    'already labeled' not in asm_create_data.stderr
-  changed_when: asm_create_data.rc == 0
+- name: Deploy udev rules for ASM disk ownership
+  template:
+    src: oracle-asmdevices.rules.j2
+    dest: /etc/udev/rules.d/99-oracle-asmdevices.rules
+    owner: root
+    group: root
+    mode: '0644'
 
-- name: Create ASM disk label for FRA
-  command: /usr/sbin/oracleasm createdisk FRA {{ asm_fra_disk }}
-  register: asm_create_fra
-  failed_when: >
-    asm_create_fra.rc != 0 and
-    'already labeled' not in asm_create_fra.stderr
-  changed_when: asm_create_fra.rc == 0
-
-- name: Scan and list ASM disks (verify visibility)
-  command: /usr/sbin/oracleasm scandisks
+- name: Reload udev rules
+  command: udevadm control --reload-rules
   changed_when: false
 
-- name: List discovered ASM disks
-  command: /usr/sbin/oracleasm listdisks
-  register: asm_listdisks
+- name: Apply udev rules to existing ASM devices
+  command: udevadm trigger --type=devices --action=change
   changed_when: false
 
-- name: Show ASM disk list
+- name: Verify DATA disk ownership (grid:asmadmin)
+  stat:
+    path: "{{ asm_data_disk }}"
+  register: asm_data_stat
+
+- name: Verify FRA disk ownership (grid:asmadmin)
+  stat:
+    path: "{{ asm_fra_disk }}"
+  register: asm_fra_stat
+
+- name: Show ASM disk permissions
   debug:
-    var: asm_listdisks.stdout_lines
+    msg:
+      - "{{ asm_data_disk }}: owner={{ asm_data_stat.stat.pw_name }}, group={{ asm_data_stat.stat.gr_name }}, mode={{ asm_data_stat.stat.mode }}"
+      - "{{ asm_fra_disk }}:  owner={{ asm_fra_stat.stat.pw_name }}, group={{ asm_fra_stat.stat.gr_name }}, mode={{ asm_fra_stat.stat.mode }}"
