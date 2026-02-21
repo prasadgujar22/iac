@@ -77,9 +77,26 @@
     'cv/rpm/cvuqdisk*.rpm' -d /tmp/cvuqdisk_extract/
   when: cvuqdisk_cached.matched | default(0) == 0
 
+- name: Find extracted cvuqdisk RPM on control node
+  delegate_to: localhost
+  become: false
+  run_once: true
+  find:
+    paths: /tmp/cvuqdisk_extract
+    patterns: "cvuqdisk*.rpm"
+  register: cvuqdisk_rpm_file
+
+- name: Fail if cvuqdisk RPM was not found after extraction
+  run_once: true
+  fail:
+    msg: >
+      cvuqdisk RPM not found in /tmp/cvuqdisk_extract/ after extraction.
+      Check that the GI zip is not corrupt and contains cv/rpm/cvuqdisk*.rpm.
+  when: cvuqdisk_rpm_file.files | length == 0
+
 - name: Copy cvuqdisk RPM to remote nodes
   copy:
-    src: "{{ lookup('fileglob', '/tmp/cvuqdisk_extract/cvuqdisk*.rpm') | first }}"
+    src: "{{ cvuqdisk_rpm_file.files[0].path }}"
     dest: /tmp/cvuqdisk.rpm
     mode: '0644'
 
