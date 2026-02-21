@@ -4,16 +4,20 @@
 # RAC-specific OS pre-requisites (run on ALL RAC nodes)
 # =============================================================================
 
-# dnf config-manager --enable only works when repo IDs already exist in
-# /etc/yum.repos.d/.  Nodes built from a minimal image often lack the
-# Oracle UEK / baseos repo files entirely, so we create them explicitly.
+# Oracle Linux ships with the signing key at /etc/pki/rpm-gpg/RPM-GPG-KEY-oracle.
+# Using the local path avoids an outbound HTTPS fetch for the key on every dnf
+# run; the internet gpgkey URL causes the repo to appear "empty" when the key
+# download times out (which surfaces as "No package X available" rather than a
+# network error).  The baseurl still reaches yum.oracle.com for the packages
+# themselves – that works because package downloads get retried, whereas the key
+# fetch does not.
 - name: Configure Oracle Linux 8 BaseOS repository
   yum_repository:
     name: ol8_baseos_latest
     description: "Oracle Linux 8 BaseOS Latest (x86_64)"
     baseurl: "https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/x86_64/"
     gpgcheck: yes
-    gpgkey: "https://yum.oracle.com/RPM-GPG-KEY-oracle-ol8"
+    gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
     enabled: yes
 
 - name: Configure Oracle Linux 8 UEK R6 repository
@@ -22,7 +26,7 @@
     description: "Oracle Linux 8 UEK R6 (x86_64)"
     baseurl: "https://yum.oracle.com/repo/OracleLinux/OL8/UEKR6/x86_64/"
     gpgcheck: yes
-    gpgkey: "https://yum.oracle.com/RPM-GPG-KEY-oracle-ol8"
+    gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
     enabled: yes
 
 - name: Install Oracle RAC prerequisite packages
