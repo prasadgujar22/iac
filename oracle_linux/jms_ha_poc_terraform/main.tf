@@ -2,8 +2,8 @@
 # JMS HA POC - Oracle RAC + WebLogic Cluster
 # =============================================================================
 # Layout:
-#   rac-node1  192.168.29.120  Oracle DB RAC Node 1  8GB / 2vCPU / 40GB OS + ASM disks
-#   rac-node2  192.168.29.121  Oracle DB RAC Node 2  8GB / 2vCPU / 40GB OS + ASM disks
+#   rac-node1  192.168.29.120  Oracle DB RAC Node 1  8GB / 2vCPU / 60GB OS + ASM disks
+#   rac-node2  192.168.29.121  Oracle DB RAC Node 2  8GB / 2vCPU / 60GB OS + ASM disks
 #   wls-admin  192.168.29.122  WLS Admin Server       2GB / 1vCPU / 40GB OS
 #   wls-node1  192.168.29.123  WLS Managed Server 1   3GB / 2vCPU / 50GB OS
 #   wls-node2  192.168.29.124  WLS Managed Server 2   3GB / 2vCPU / 50GB OS
@@ -58,7 +58,7 @@ resource "proxmox_vm_qemu" "rac_node1" {
       # OS disk
       scsi0 {
         disk {
-          size    = "40G"
+          size    = "60G"
           storage = "local-lvm"
         }
       }
@@ -134,7 +134,7 @@ resource "proxmox_vm_qemu" "rac_node2" {
       # OS disk
       scsi0 {
         disk {
-          size    = "40G"
+          size    = "60G"
           storage = "local-lvm"
         }
       }

@@ -8,6 +8,64 @@
   hostname:
     name: "{{ inventory_hostname }}"
 
+# ---------------------------------------------------------------------------
+# Grow OS partition + filesystem to fill the physical disk.
+# Required when the virtual disk is enlarged after first boot (e.g. Proxmox
+# resize) because cloud-init does not re-run growpart on subsequent boots.
+# Safe to re-run: growpart exits 1 when already at max size (not an error).
+# Handles both LVM-on-partition (typical OL9 cloud image) and raw partitions.
+# ---------------------------------------------------------------------------
+- name: Install cloud-utils-growpart
+  dnf:
+    name: cloud-utils-growpart
+    state: present
+
+- name: Discover root source device (LVM DM path or raw partition)
+  command: findmnt -n -o SOURCE /
+  register: root_source
+  changed_when: false
+
+- name: Resolve partition backing the root filesystem
+  shell: |
+    ROOT="{{ root_source.stdout | trim }}"
+    if echo "$ROOT" | grep -qE 'mapper|dm-'; then
+      pvs --noheadings -o pv_name | awk '{print $1}' | head -1
+    else
+      echo "$ROOT"
+    fi
+  args:
+    executable: /bin/bash
+  register: root_partition
+  changed_when: false
+
+- name: Grow root partition to fill physical disk
+  shell: |
+    PART="{{ root_partition.stdout | trim }}"
+    PNUM=$(echo "$PART" | grep -oE '[0-9]+$')
+    DISK=$(echo "$PART" | sed 's/[0-9]*$//')
+    growpart "$DISK" "$PNUM"
+  args:
+    executable: /bin/bash
+  register: growpart_result
+  changed_when: "'CHANGED' in growpart_result.stdout"
+  failed_when: growpart_result.rc not in [0, 1]   # rc=1 = already at max size
+
+- name: Resize LVM PV to pick up new partition space
+  command: pvresize "{{ root_partition.stdout | trim }}"
+  changed_when: false
+  when: root_source.stdout | regex_search('mapper|dm-')
+
+- name: Extend root LV to consume all free physical extents
+  shell: lvextend -l +100%FREE "{{ root_source.stdout | trim }}" || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when: root_source.stdout | regex_search('mapper|dm-')
+
+- name: Grow XFS root filesystem to fill logical volume or partition
+  command: xfs_growfs /
+  changed_when: false
+
 - name: Populate /etc/hosts for all cluster members
   blockinfile:
     path: /etc/hosts
