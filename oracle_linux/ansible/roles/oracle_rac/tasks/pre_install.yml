@@ -183,25 +183,33 @@
     state: present
   loop: "{{ groups['rac_nodes'] }}"
 
-- name: Populate SSH known_hosts for oracle user (avoid first-connect prompt)
+- name: Populate SSH known_hosts for oracle user (scan by hostname from each RAC node)
   become_user: "{{ oracle_user }}"
-  known_hosts:
-    name: "{{ item }}"
-    state: present
-    hash_host: false
-    key: "{{ lookup('pipe', 'ssh-keyscan -H ' + item + ' 2>/dev/null') }}"
-  loop: "{{ groups['rac_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
-  ignore_errors: true
+  shell: |
+    KNOWN=/home/{{ oracle_user }}/.ssh/known_hosts
+    touch "$KNOWN" && chmod 600 "$KNOWN"
+    for host in {{ groups['rac_nodes'] | join(' ') }}; do
+      ssh-keyscan -t rsa,ecdsa,ed25519 "$host" 2>/dev/null
+    done | sort -u >> "$KNOWN"
+    sort -u "$KNOWN" -o "$KNOWN"
+  changed_when: true
 
-- name: Populate SSH known_hosts for grid user
+- name: Populate SSH known_hosts for grid user (scan by hostname from each RAC node)
   become_user: "{{ grid_user }}"
-  known_hosts:
-    name: "{{ item }}"
-    state: present
-    hash_host: false
-    key: "{{ lookup('pipe', 'ssh-keyscan -H ' + item + ' 2>/dev/null') }}"
-  loop: "{{ groups['rac_nodes'] | map('extract', hostvars, 'ansible_host') | list }}"
-  ignore_errors: true
+  shell: |
+    KNOWN=/home/{{ grid_user }}/.ssh/known_hosts
+    touch "$KNOWN" && chmod 600 "$KNOWN"
+    for host in {{ groups['rac_nodes'] | join(' ') }}; do
+      ssh-keyscan -t rsa,ecdsa,ed25519 "$host" 2>/dev/null
+    done | sort -u >> "$KNOWN"
+    sort -u "$KNOWN" -o "$KNOWN"
+  changed_when: true
+
+- name: Verify passwordless SSH works for grid user (fail fast before GI installer)
+  become_user: "{{ grid_user }}"
+  command: ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no {{ item }} hostname
+  loop: "{{ groups['rac_nodes'] }}"
+  changed_when: false
 
 - name: Verify Oracle GI zip exists on control node
   delegate_to: localhost
