@@ -4,22 +4,42 @@
 # RAC-specific OS pre-requisites (run on ALL RAC nodes)
 # =============================================================================
 
-# oracleasm-support and kmod-oracleasm live in the Oracle Linux UEK repo.
-# Enable it first so dnf can resolve those packages.
-- name: Enable Oracle Linux UEK and base repositories
-  command: >
-    dnf config-manager --enable
-    ol8_baseos_latest ol8_appstream ol8_UEKR6
-  changed_when: false
-  ignore_errors: true   # repo names differ slightly between OL sub-releases
+# dnf config-manager --enable only works when repo IDs already exist in
+# /etc/yum.repos.d/.  Nodes built from a minimal image often lack the
+# Oracle UEK / baseos repo files entirely, so we create them explicitly.
+- name: Configure Oracle Linux 8 BaseOS repository
+  yum_repository:
+    name: ol8_baseos_latest
+    description: "Oracle Linux 8 BaseOS Latest (x86_64)"
+    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL8/baseos/latest/x86_64/"
+    gpgcheck: yes
+    gpgkey: "https://yum.oracle.com/RPM-GPG-KEY-oracle-ol8"
+    enabled: yes
+
+- name: Configure Oracle Linux 8 UEK R6 repository
+  yum_repository:
+    name: ol8_UEKR6
+    description: "Oracle Linux 8 UEK R6 (x86_64)"
+    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL8/UEKR6/x86_64/"
+    gpgcheck: yes
+    gpgkey: "https://yum.oracle.com/RPM-GPG-KEY-oracle-ol8"
+    enabled: yes
 
 - name: Install Oracle RAC prerequisite packages
   dnf:
     name:
       - oracle-database-preinstall-19c
       - oracleasm-support
-      - kmod-oracleasm
     state: present
+
+# kmod-oracleasm is only required on RHCK (Red Hat Compatible Kernel).
+# On UEK R6 the oracleasm module is compiled into the kernel – the RPM
+# simply does not exist in that repo, so we tolerate the failure.
+- name: Install kmod-oracleasm (RHCK only – skipped silently on UEK)
+  dnf:
+    name: kmod-oracleasm
+    state: present
+  ignore_errors: true
   # cvuqdisk is NOT in any public repo – it is extracted from the GI zip below.
 
 # --- cvuqdisk: extract from GI installer media and push to nodes ----------
