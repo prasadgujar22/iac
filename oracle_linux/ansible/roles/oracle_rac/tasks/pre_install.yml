@@ -33,8 +33,44 @@
   dnf:
     name:
       - oracle-database-preinstall-19c
-      - oracleasm-support
     state: present
+
+# ── Local ASM RPM override ────────────────────────────────────────────────────
+# Drop one or both RPMs into  roles/oracle_rac/files/  and they will be
+# copied to each node and installed (no GPG check needed – the key URL is
+# often unreachable on lab networks).
+#
+#   oracleasm-support-*.el8.x86_64.rpm   ← /usr/sbin/oracleasm CLI (required)
+#   oracleasmlib-*.el8.x86_64.rpm        ← liboracleasm shared library
+#
+# Both are on yum.oracle.com/repo/OracleLinux/OL8/UEKR6/x86_64/
+# If no local files are present the tasks fall back to the yum repo.
+- name: Gather locally provided ASM RPM paths
+  set_fact:
+    local_asm_rpms: >-
+      {{ lookup('fileglob', role_path + '/files/oracleasm*.rpm', wantlist=True)
+       + lookup('fileglob', role_path + '/files/oracleasmlib*.rpm', wantlist=True) }}
+
+- name: Copy local ASM RPMs to remote nodes
+  copy:
+    src: "{{ item }}"
+    dest: "/tmp/{{ item | basename }}"
+    mode: '0644'
+  loop: "{{ local_asm_rpms }}"
+  when: local_asm_rpms | length > 0
+
+- name: Install local ASM RPMs
+  dnf:
+    name: "{{ local_asm_rpms | map('basename') | map('regex_replace', '^', '/tmp/') | list }}"
+    state: present
+    disable_gpg_check: true
+  when: local_asm_rpms | length > 0
+
+- name: Install oracleasm-support from yum (fallback – used when no local RPMs)
+  dnf:
+    name: oracleasm-support
+    state: present
+  when: local_asm_rpms | length == 0
 
 # kmod-oracleasm is only required on RHCK (Red Hat Compatible Kernel).
 # On UEK R6 the oracleasm module is compiled into the kernel – the RPM
