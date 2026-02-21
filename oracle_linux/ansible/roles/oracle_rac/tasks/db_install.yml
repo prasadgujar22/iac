@@ -22,6 +22,8 @@
     -responseFile {{ installer_stage }}/db_install.rsp
     -ignorePrereqFailure
     -skipPrereqs
+  environment:
+    CV_ASSUME_DISTID: OEL7.6
   register: db_install_result
   failed_when: >
     db_install_result.rc not in [0, 6] and

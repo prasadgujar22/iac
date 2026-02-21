@@ -21,6 +21,8 @@
     -silent
     -responseFile {{ installer_stage }}/grid_install.rsp
     -ignorePrereqFailure
+  environment:
+    CV_ASSUME_DISTID: OEL7.6
   register: gi_install_result
   failed_when: >
     gi_install_result.rc not in [0, 6] and
@@ -55,6 +57,8 @@
     -executeConfigTools
     -responseFile {{ installer_stage }}/grid_install.rsp
     -ignorePrereqFailure
+  environment:
+    CV_ASSUME_DISTID: OEL7.6
   register: gridca_result
   failed_when: gridca_result.rc not in [0, 6]
   changed_when: true
