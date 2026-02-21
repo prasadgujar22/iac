@@ -4,14 +4,47 @@
 # RAC-specific OS pre-requisites (run on ALL RAC nodes)
 # =============================================================================
 
+# oracleasm-support and kmod-oracleasm live in the Oracle Linux UEK repo.
+# Enable it first so dnf can resolve those packages.
+- name: Enable Oracle Linux UEK and base repositories
+  command: >
+    dnf config-manager --enable
+    ol8_baseos_latest ol8_appstream ol8_UEKR6
+  changed_when: false
+  ignore_errors: true   # repo names differ slightly between OL sub-releases
+
 - name: Install Oracle RAC prerequisite packages
   dnf:
     name:
       - oracle-database-preinstall-19c
-      - cvuqdisk                         # Cluster Verification Utility disk pkg
       - oracleasm-support
       - kmod-oracleasm
     state: present
+  # cvuqdisk is NOT in any public repo – it is extracted from the GI zip below.
+
+# --- cvuqdisk: extract from GI installer media and push to nodes ----------
+- name: Extract cvuqdisk RPM from Grid Infrastructure zip (runs on control node)
+  delegate_to: localhost
+  become: false
+  run_once: true
+  shell: >
+    mkdir -p /tmp/cvuqdisk_extract &&
+    unzip -j {{ local_installer_src }}/{{ oracle_gi_zip }}
+    'cv/rpm/cvuqdisk*.rpm' -d /tmp/cvuqdisk_extract/
+  args:
+    creates: /tmp/cvuqdisk_extract
+
+- name: Copy cvuqdisk RPM to remote nodes
+  copy:
+    src: "{{ lookup('fileglob', '/tmp/cvuqdisk_extract/cvuqdisk*.rpm') | first }}"
+    dest: /tmp/cvuqdisk.rpm
+    mode: '0644'
+
+- name: Install cvuqdisk from extracted RPM
+  dnf:
+    name: /tmp/cvuqdisk.rpm
+    state: present
+    disable_gpg_check: true
 
 - name: Enable oracleasm module
   command: modprobe oracleasm
