@@ -72,7 +72,7 @@ resource "proxmox_vm_qemu" "rac_node1" {
       # ASM FRA shared disk (use shared storage pool for real RAC)
       scsi2 {
         disk {
-          size    = "20G"
+          size    = "60G"
           storage = var.asm_storage
         }
       }
@@ -148,7 +148,7 @@ resource "proxmox_vm_qemu" "rac_node2" {
       # ASM FRA shared disk (must be same physical disk as rac-node1 scsi2)
       scsi2 {
         disk {
-          size    = "20G"
+          size    = "60G"
           storage = var.asm_storage
         }
       }
