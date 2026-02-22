@@ -333,51 +333,71 @@
     path: "{{ grid_home }}/gridSetup.sh"
   register: gi_home_stat
 
-- name: Copy Oracle GI installer zip to staging area on remote
+- name: Copy Oracle GI installer zip to staging area on remote (node1 only)
   copy:
     src: "{{ local_installer_src }}/{{ oracle_gi_zip }}"
     dest: "{{ installer_stage }}/{{ oracle_gi_zip }}"
     owner: "{{ grid_user }}"
     group: "{{ oracle_group }}"
     mode: '0644'
-  when: not gi_home_stat.stat.exists
+  when: >
+    not gi_home_stat.stat.exists and
+    inventory_hostname == oracle_node1_hostname
 
-- name: Unzip Oracle GI installer
+- name: Unzip Oracle GI installer (node1 only)
   become_user: "{{ grid_user }}"
   unarchive:
     src: "{{ installer_stage }}/{{ oracle_gi_zip }}"
     dest: "{{ grid_home }}"
     remote_src: true
     creates: "{{ grid_home }}/gridSetup.sh"
+  when: inventory_hostname == oracle_node1_hostname
 
-- name: Remove GI installer zip from staging (free disk space before DB installer)
+- name: Remove GI installer zip from staging (node1 only)
   file:
     path: "{{ installer_stage }}/{{ oracle_gi_zip }}"
     state: absent
+  when: inventory_hostname == oracle_node1_hostname
 
 - name: Check if DB home is already extracted
   stat:
     path: "{{ oracle_home }}/runInstaller"
   register: db_home_stat
 
-- name: Copy Oracle DB installer zip to staging area on remote
+- name: Copy Oracle DB installer zip to staging area on remote (node1 only)
   copy:
     src: "{{ local_installer_src }}/{{ oracle_db_zip }}"
     dest: "{{ installer_stage }}/{{ oracle_db_zip }}"
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: '0644'
-  when: not db_home_stat.stat.exists
+  when: >
+    not db_home_stat.stat.exists and
+    inventory_hostname == oracle_node1_hostname
 
-- name: Unzip Oracle DB installer
+- name: Unzip Oracle DB installer (node1 only)
   become_user: "{{ oracle_user }}"
   unarchive:
     src: "{{ installer_stage }}/{{ oracle_db_zip }}"
     dest: "{{ oracle_home }}"
     remote_src: true
     creates: "{{ oracle_home }}/runInstaller"
+  when: inventory_hostname == oracle_node1_hostname
 
-- name: Remove DB installer zip from staging (free disk space)
+- name: Remove DB installer zip from staging (node1 only)
   file:
     path: "{{ installer_stage }}/{{ oracle_db_zip }}"
     state: absent
+  when: inventory_hostname == oracle_node1_hostname
+
+- name: Clean up destination directories on remote nodes (prepare for GI push)
+  shell: |
+    rm -rf {{ grid_home }}/*
+    rm -rf {{ grid_home }}/.[!.]*
+    rm -rf {{ oracle_home }}/*
+    rm -rf {{ oracle_home }}/.[!.]*
+  args:
+    executable: /bin/bash
+  when: >
+    inventory_hostname != oracle_node1_hostname and
+    not gi_home_stat.stat.exists
