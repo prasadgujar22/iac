@@ -13,25 +13,38 @@
     - "{{ asm_fra_partition }}"
   changed_when: false
 
-# kfod.bin (the ASM disk discovery tool the GI installer forks to validate
-# disks) links against libclntshcore.so.19.1 which lives in the Grid home's
-# lib directory.  On OL9 that path is not in the default linker search paths,
-# so kfod.bin exits with code 127 ("No such file or directory") and the
-# installer can discover no disks → [INS-30508] + [INS-30515].
-#
-# Fix: register the Grid home lib directory with the system dynamic linker on
-# EVERY cluster node (kfod.bin is also invoked on remote nodes via SSH during
-# disk discovery) and set LD_LIBRARY_PATH in the installer environment as a
-# belt-and-suspenders fallback.
-- name: Register Grid home library path with system dynamic linker
-  copy:
-    content: "{{ grid_home }}/lib\n"
-    dest: /etc/ld.so.conf.d/oracle-grid.conf
-    owner: root
-    group: root
-    mode: '0644'
+# kfod.bin (the disk validator the GI installer forks) links against
+# libclntshcore.so.19.1.  On OL9, LD_LIBRARY_PATH and /etc/ld.so.conf.d/
+# entries are not enough because gridSetup.sh may reset LD_LIBRARY_PATH
+# before forking kfod.bin, and ldconfig only caches files that actually exist
+# at the configured path.  The reliable fix is to find the library wherever
+# it lives inside the Grid home and symlink it into /usr/lib64/ – which is
+# always in the system linker's search path regardless of environment.
+# This must run on ALL nodes because the installer also forks kfod.bin on
+# remote nodes via SSH during the cluster-wide disk discovery pass.
+- name: Find libclntshcore.so.19.1 in Grid home
+  shell: find {{ grid_home }} -name "libclntshcore.so.19.1" 2>/dev/null | head -1
+  register: libclntshcore_find
+  changed_when: false
+  failed_when: false
 
-- name: Rebuild dynamic linker cache (ldconfig)
+- name: Fail if libclntshcore.so.19.1 is not present in the Grid home
+  fail:
+    msg: >
+      libclntshcore.so.19.1 was not found anywhere under {{ grid_home }}.
+      The GI zip may be incomplete or was not fully extracted.
+      Verify that {{ grid_home }}/lib/libclntshcore.so.19.1 exists.
+  when: libclntshcore_find.stdout | trim == ''
+
+- name: Symlink libclntshcore.so.19.1 into /usr/lib64 (kfod.bin runtime dep)
+  file:
+    src: "{{ libclntshcore_find.stdout | trim }}"
+    dest: /usr/lib64/libclntshcore.so.19.1
+    state: link
+    force: true
+  when: libclntshcore_find.stdout | trim != ''
+
+- name: Rebuild dynamic linker cache after adding Oracle library symlink
   command: ldconfig
   changed_when: false
 
