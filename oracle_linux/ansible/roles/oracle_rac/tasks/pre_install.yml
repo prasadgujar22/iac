@@ -284,7 +284,7 @@
     mode: '0755'
     content: |
       #!/bin/bash
-      /usr/bin/scp.orig -O "$@"
+      /usr/bin/scp.orig -O -T "$@"
 
 - name: Verify passwordless SSH works for oracle user (fail fast before GI installer)
   become_user: "{{ oracle_user }}"
