@@ -226,11 +226,18 @@
         var: gi_log_tail.stdout_lines
       when: gi_log_tail is defined
 
+- name: Check if orainstRoot.sh is present in Oracle inventory directory
+  stat:
+    path: "{{ oracle_inventory }}/orainstRoot.sh"
+  register: orainst_rootsh_stat
+
 - name: Run orainstRoot.sh on ALL nodes
-  command: /u01/app/oraInventory/orainstRoot.sh
+  command: "{{ oracle_inventory }}/orainstRoot.sh"
   register: orainst_result
   changed_when: orainst_result.rc == 0
-  when: not orainst_loc_stat.stat.exists
+  when:
+    - not orainst_loc_stat.stat.exists
+    - orainst_rootsh_stat.stat.exists
   ignore_errors: true
 
 # root.sh configures and starts CRS on each node.  It writes /etc/oracle/olr.loc

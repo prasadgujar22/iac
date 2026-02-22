@@ -13,6 +13,18 @@
     group: "{{ oracle_group }}"
     mode: '0640'
 
+# ─── Idempotency: skip DBCA entirely if the database is already registered ───
+# On re-runs after a successful first run srvctl returns 0; DBCA would
+# otherwise fail with "[DBT-06901] database name already exists in CRS".
+- name: Check if RAC database is already registered with CRS
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    {{ oracle_home }}/bin/srvctl config database -d {{ oracle_db_name }}
+  register: db_crs_check
+  changed_when: false
+  failed_when: false
+
 - name: Create Oracle RAC database using DBCA (silent)
   become_user: "{{ oracle_user }}"
   command: >
@@ -26,12 +38,14 @@
     'Database creation complete' not in dbca_result.stdout
   changed_when: >
     'Database creation complete' in dbca_result.stdout
+  when: db_crs_check.rc != 0
   async: 7200
   poll: 60
 
 - name: Show DBCA output
   debug:
     var: dbca_result.stdout_lines
+  when: db_crs_check.rc != 0 and dbca_result is defined
 
 - name: Verify RAC instances are running
   become_user: "{{ oracle_user }}"
@@ -45,6 +59,23 @@
 - name: Show database status
   debug:
     var: srvctl_status.stdout_lines
+
+# ─── Idempotency: only bounce the database if archivelog is not yet on ───────
+# SHUTDOWN IMMEDIATE on a live cluster is disruptive; skip the whole block
+# if V$DATABASE already reports ARCHIVELOG mode.
+- name: Check if archive log mode is already enabled
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    export ORACLE_SID={{ oracle_db_name }}1
+    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
+    SET PAGESIZE 0 FEEDBACK OFF HEADING OFF TRIMSPOOL ON
+    SELECT LOG_MODE FROM V$DATABASE;
+    EXIT;
+    EOF
+  register: archivelog_mode_check
+  changed_when: false
+  failed_when: false
 
 - name: Enable archive log mode
   become_user: "{{ oracle_user }}"
@@ -62,6 +93,7 @@
     EOF
   register: archivelog_result
   changed_when: "'Database altered' in archivelog_result.stdout"
+  when: "'ARCHIVELOG' not in archivelog_mode_check.stdout"
 
 - name: Create Oracle Net listener (if not already configured by GI)
   become_user: "{{ grid_user }}"
