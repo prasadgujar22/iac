@@ -29,7 +29,11 @@ oracle.install.crs.config.clusterName={{ cluster_name }}
 oracle.install.crs.config.clusterNodes={{ oracle_node1_hostname }}:{{ oracle_node1_hostname }}-vip,{{ oracle_node2_hostname }}:{{ oracle_node2_hostname }}-vip
 oracle.install.crs.config.networkInterfaceList=eth0:192.168.29.0:1,eth1:10.0.0.0:5
 
-oracle.install.crs.config.storageOption=FLEX_ASM_STORAGE
+# LOCAL_ASM_STORAGE: each cluster node runs its own ASM instance against
+# shared block devices.  FLEX_ASM_STORAGE is for hub/leaf topology only;
+# using it with a STANDALONE cluster causes [INS-30508] at the
+# CreateASMDiskGroup validation step (fails in <20 ms, no disk I/O attempted).
+oracle.install.crs.config.storageOption=LOCAL_ASM_STORAGE
 oracle.install.crs.config.useIPMI=false
 
 #--------------------------------------------------------------------
@@ -42,7 +46,10 @@ oracle.install.asm.diskGroup.redundancy={{ asm_redundancy }}
 oracle.install.asm.diskGroup.AUSize=4
 oracle.install.asm.diskGroup.disksWithFailureGroupNames=
 oracle.install.asm.diskGroup.disks={{ asm_data_partition }}
-oracle.install.asm.diskGroup.diskDiscoveryString=/dev/sd[b-z]1
+# Use * wildcard only – Oracle's discovery parser does not support POSIX
+# bracket expressions ([b-z]); an unrecognised pattern returns no candidates,
+# which also causes [INS-30508] before any disk I/O is attempted.
+oracle.install.asm.diskGroup.diskDiscoveryString=/dev/sd*1
 
 oracle.install.crs.rootconfig.executeRootScript=false
 
