@@ -12,6 +12,10 @@
     - "{{ asm_data_partition }}"
     - "{{ asm_fra_partition }}"
   changed_when: false
+  # Only needed before the GI installer runs.  When CRS is already configured
+  # the installer is skipped; skip the check too so a live cluster re-run does
+  # not fail here and drop the node from DBCA and subsequent plays.
+  when: not node_crs_configured
 
 # libclntshcore.so is NOT included in the Grid Infrastructure zip; it ships
 # with the Oracle Database software.  The GI installer needs it in two ways:

@@ -178,3 +178,7 @@
       open the block devices and gridSetup.sh will fail with [INS-30508].
       Check udev rules in /etc/udev/rules.d/99-oracle-asmdevices.rules and
       verify that the 'grid' user is a member of the 'asmadmin' group.
+  # This check is only meaningful before the GI installer runs.  When CRS is
+  # already configured ASM owns the disks and the assertion may produce false
+  # positives; skip it so re-runs on a live cluster do not drop the node.
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
