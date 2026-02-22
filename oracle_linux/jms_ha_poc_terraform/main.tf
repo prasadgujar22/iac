@@ -40,6 +40,7 @@ resource "proxmox_vm_qemu" "rac_node1" {
   cipassword = "$6$RCgEI/BqaRcYexG6$23e3jxp8rWlCLohpW76PU087lv5QdHaQeOfkRz4gM59IZV7LjkPnBByjSNkp2LOdkYJpZFISllArj0nkNY3z41"
   nameserver = "8.8.8.8"
   ipconfig0  = "ip=192.168.29.120/24,gw=192.168.29.1"
+  ipconfig1  = "ip=10.0.0.120/24"
 
   sshkeys = <<EOF
   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
@@ -47,6 +48,12 @@ resource "proxmox_vm_qemu" "rac_node1" {
 
   network {
     id     = 0
+    model  = "virtio"
+    bridge = "vmbr0"
+  }
+
+  network {
+    id     = 1
     model  = "virtio"
     bridge = "vmbr0"
   }
@@ -114,6 +121,7 @@ resource "proxmox_vm_qemu" "rac_node2" {
   cipassword = "$6$RCgEI/BqaRcYexG6$23e3jxp8rWlCLohpW76PU087lv5QdHaQeOfkRz4gM59IZV7LjkPnBByjSNkp2LOdkYJpZFISllArj0nkNY3z41"
   nameserver = "8.8.8.8"
   ipconfig0  = "ip=192.168.29.121/24,gw=192.168.29.1"
+  ipconfig1  = "ip=10.0.0.121/24"
 
   sshkeys = <<EOF
   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
@@ -121,6 +129,12 @@ resource "proxmox_vm_qemu" "rac_node2" {
 
   network {
     id     = 0
+    model  = "virtio"
+    bridge = "vmbr0"
+  }
+
+  network {
+    id     = 1
     model  = "virtio"
     bridge = "vmbr0"
   }

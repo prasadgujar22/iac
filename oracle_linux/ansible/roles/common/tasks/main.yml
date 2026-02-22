@@ -66,6 +66,12 @@
   command: xfs_growfs /
   changed_when: false
 
+- name: Remove cloud-init loopback entries for hostname (PRVG-13632 fix)
+  lineinfile:
+    path: /etc/hosts
+    regexp: '^(127\.0\.0\.1|::1)\s+{{ inventory_hostname }}'
+    state: absent
+
 - name: Populate /etc/hosts for all cluster members
   blockinfile:
     path: /etc/hosts
@@ -74,6 +80,9 @@
       # --- RAC public ---
       192.168.29.120  rac-node1.lab.local  rac-node1
       192.168.29.121  rac-node2.lab.local  rac-node2
+      # --- RAC private (interconnect) ---
+      10.0.0.120      rac-node1-priv.lab.local rac-node1-priv
+      10.0.0.121      rac-node2-priv.lab.local rac-node2-priv
       # --- RAC VIP ---
       192.168.29.130  rac-node1-vip.lab.local  rac-node1-vip
       192.168.29.131  rac-node2-vip.lab.local  rac-node2-vip
