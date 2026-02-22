@@ -172,8 +172,17 @@
     mode: '0775'
   loop:
     - "{{ oracle_base }}"
-    - "{{ oracle_inventory }}"
     - "{{ installer_stage }}"
+
+# oraInventory must be owned by the GI installer user (grid), not oracle.
+# INS-32039 is raised when the owner does not match the installer user.
+- name: Create Oracle Inventory directory (owned by grid)
+  file:
+    path: "{{ oracle_inventory }}"
+    state: directory
+    owner: "{{ grid_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
 
 - name: Create grid base directory
   file:
