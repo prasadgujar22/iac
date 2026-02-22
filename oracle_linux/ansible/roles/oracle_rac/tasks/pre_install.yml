@@ -31,6 +31,42 @@
       - oracle-database-preinstall-19c
     state: present
 
+# Oracle 19c (19.3) on OL9 requires additional packages not pulled in by the
+# preinstall RPM.  libnsl was removed from glibc in OL9; libnsl2/libnsl2-devel
+# restore the shared library so Oracle's makefiles can link against -lnsl.
+# glibc-static provides the static archives needed during ins_rdbms.mk linking.
+- name: Install Oracle 19c / OL9 compatibility packages
+  dnf:
+    name:
+      - libnsl2
+      - libnsl2-devel
+      - glibc-static
+    state: present
+
+# On OL9 (glibc 2.34+) libpthread was merged into libc; libpthread_nonshared.a
+# no longer exists as a standalone file.  Oracle 19c's ins_rdbms.mk explicitly
+# references it when building libasmclntsh19.ohso / libasmperl19.ohso.
+# Symlinking it to libc_nonshared.a (which now contains the same content) lets
+# the make target succeed without patching the makefile.
+- name: Create libpthread_nonshared.a compatibility symlink (OL9 / glibc-2.34+)
+  file:
+    src: /usr/lib64/libc_nonshared.a
+    dest: /usr/lib64/libpthread_nonshared.a
+    state: link
+    force: false      # do not overwrite if a real file already exists
+
+# libnsl.so / libnsl.so.1 symlinks – OL9 ships libnsl.so.2 via libnsl2 but
+# does not create the .so / .so.1 compat names that Oracle's linker flags need.
+- name: Create libnsl compatibility symlinks for Oracle 19c on OL9
+  file:
+    src: /usr/lib64/libnsl.so.2
+    dest: "{{ item }}"
+    state: link
+    force: false
+  loop:
+    - /usr/lib64/libnsl.so.1
+    - /usr/lib64/libnsl.so
+
 # oracleasm-support is not in any public OL9 repo (requires ULN subscription).
 # ASM disk management is handled via udev rules instead – see asm_disks.yml.
 # cvuqdisk is NOT in any public repo – it is extracted from the GI zip below.
