@@ -238,6 +238,54 @@
       {{ hostvars[item]['ansible_host'] }} {{ hostvars[item]['node_host_ed25519_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
   loop: "{{ groups['rac_nodes'] }}"
 
+# =============================================================================
+# Oracle 19c / OL9 OpenSSH 8.7+ Backwards Compatibility Fixes
+# 1. Enable deprecated ssh-rsa (required by JSch inside CVU)
+# 2. Force legacy scp protocol (CVU cannot interpret SFTP output)
+# =============================================================================
+- name: Enable ssh-rsa protocol in SSH client config
+  blockinfile:
+    path: /etc/ssh/ssh_config.d/01-oracle-rsa.conf
+    create: yes
+    mode: '0644'
+    block: |
+      Host *
+        PubkeyAcceptedKeyTypes +ssh-rsa
+        HostKeyAlgorithms +ssh-rsa
+
+- name: Enable ssh-rsa protocol in SSH server config
+  blockinfile:
+    path: /etc/ssh/sshd_config.d/01-oracle-rsa.conf
+    create: yes
+    mode: '0644'
+    block: |
+      PubkeyAcceptedKeyTypes +ssh-rsa
+      HostKeyAlgorithms +ssh-rsa
+  register: sshd_config_result
+
+- name: Restart sshd if config changed
+  service:
+    name: sshd
+    state: restarted
+  when: sshd_config_result.changed
+
+- name: Check if original scp was already backed up
+  stat:
+    path: /usr/bin/scp.orig
+  register: scp_orig_stat
+
+- name: Backup original scp
+  command: mv /usr/bin/scp /usr/bin/scp.orig
+  when: not scp_orig_stat.stat.exists
+
+- name: Create legacy scp wrapper for Oracle 19c CVU
+  copy:
+    dest: /usr/bin/scp
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      /usr/bin/scp.orig -O "$@"
+
 - name: Verify passwordless SSH works for oracle user (fail fast before GI installer)
   become_user: "{{ oracle_user }}"
   command: ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 {{ item }} hostname
