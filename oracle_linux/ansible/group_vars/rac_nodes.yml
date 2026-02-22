@@ -20,6 +20,11 @@ scan_port: 1521
 # scsi1 → DATA diskgroup, scsi2 → FRA diskgroup (from Terraform)
 asm_data_disk: /dev/sdb
 asm_fra_disk: /dev/sdc
+# Partition devices created by asm_disks.yml – the GI 19c installer on OL9
+# rejects whole-disk block devices ([INS-30508]), so we partition each disk
+# and point ASM at the partitions instead.
+asm_data_partition: /dev/sdb1
+asm_fra_partition: /dev/sdc1
 asm_data_diskgroup: DATA
 asm_fra_diskgroup: FRA
 asm_redundancy: EXTERNAL      # Use NORMAL/HIGH when you have real shared storage

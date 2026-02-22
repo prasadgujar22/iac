@@ -5,15 +5,15 @@
 # Run on node1 first; the installer automatically configures node2 via SSH
 # =============================================================================
 
-# Pre-flight: confirm grid user can actually open each ASM disk.
+# Pre-flight: confirm grid user can actually open each ASM partition.
 # This catches permission failures immediately with a clear message rather than
 # waiting ~40 s for gridSetup.sh to fail with [INS-30508] / [INS-30515].
-- name: Pre-flight – verify grid user can read ASM block devices
+- name: Pre-flight – verify grid user can read ASM partitions
   become_user: "{{ grid_user }}"
   command: dd if={{ item }} of=/dev/null bs=512 count=1
   loop:
-    - "{{ asm_data_disk }}"
-    - "{{ asm_fra_disk }}"
+    - "{{ asm_data_partition }}"
+    - "{{ asm_fra_partition }}"
   changed_when: false
 
 - name: Generate Grid Infrastructure response file
