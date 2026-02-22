@@ -24,6 +24,17 @@
   command: dd if=/dev/zero of={{ asm_fra_disk }} bs=1M count=1
   changed_when: false
 
+# Force the kernel to drop its cached partition table for each disk.
+# Without this, stale child devices (e.g. /dev/sdb1) may still appear and
+# cause gridSetup.sh to report [INS-30508] "disk not valid / in use".
+- name: Force kernel partition-table re-read after disk wipe
+  command: blockdev --rereadpt {{ item }}
+  loop:
+    - "{{ asm_data_disk }}"
+    - "{{ asm_fra_disk }}"
+  changed_when: false
+  ignore_errors: true   # may return EBUSY on some kernels yet still succeed
+
 - name: Deploy udev rules for ASM disk ownership
   template:
     src: oracle-asmdevices.rules.j2
@@ -40,6 +51,24 @@
   command: udevadm trigger --type=devices --action=change
   changed_when: false
 
+# udevadm trigger is asynchronous; settle waits until all queued events are
+# processed so permissions are guaranteed to be in place before we check them.
+- name: Wait for udev to finish processing ASM device events
+  command: udevadm settle --timeout=30
+  changed_when: false
+
+# Belt-and-suspenders: apply ownership/mode directly in case the udev rule
+# missed (e.g. a race during the trigger or a rule-syntax mismatch).
+- name: Set ASM disk ownership and mode (fallback after udev)
+  file:
+    path: "{{ item }}"
+    owner: "{{ grid_user }}"
+    group: asmadmin
+    mode: '0660'
+  loop:
+    - "{{ asm_data_disk }}"
+    - "{{ asm_fra_disk }}"
+
 - name: Verify DATA disk ownership (grid:asmadmin)
   stat:
     path: "{{ asm_data_disk }}"
@@ -55,3 +84,18 @@
     msg:
       - "{{ asm_data_disk }}: owner={{ asm_data_stat.stat.pw_name }}, group={{ asm_data_stat.stat.gr_name }}, mode={{ asm_data_stat.stat.mode }}"
       - "{{ asm_fra_disk }}:  owner={{ asm_fra_stat.stat.pw_name }}, group={{ asm_fra_stat.stat.gr_name }}, mode={{ asm_fra_stat.stat.mode }}"
+
+# Hard-stop here rather than letting the GI installer produce a cryptic
+# [INS-30508] message 40 seconds later.
+- name: Assert ASM disk permissions are correct before continuing
+  assert:
+    that:
+      - asm_data_stat.stat.pw_name == grid_user
+      - asm_data_stat.stat.gr_name == 'asmadmin'
+      - asm_fra_stat.stat.pw_name  == grid_user
+      - asm_fra_stat.stat.gr_name  == 'asmadmin'
+    fail_msg: >
+      ASM disk permissions are wrong – the grid user will not be able to open
+      the block devices and gridSetup.sh will fail with [INS-30508].
+      Check udev rules in /etc/udev/rules.d/99-oracle-asmdevices.rules and
+      verify that the 'grid' user is a member of the 'asmadmin' group.
