@@ -60,7 +60,21 @@
     - "{{ asm_data_partition }}"
     - "{{ asm_fra_partition }}"
 
-# Clean any residual filesystem signatures from the fresh partitions.
+# CRITICAL: The partition data area begins at exactly the 1 MiB boundary of
+# the physical disk – the precise byte where the parent-disk dd wipe stops.
+# Proxmox local-lvm does not zero-initialise LV extents, so the blocks that
+# back /dev/sdb1 can contain stale data from previous LVM allocations.  If a
+# prior kfbh (ASM disk header) sits at that offset, Oracle's kfed validator
+# reads a checksum mismatch and raises [INS-30508] / [INS-30515].
+# Zeroing the first 10 MiB of each partition guarantees a clean slate.
+- name: Zero the first 10 MiB of each ASM partition (clear stale kfbh headers)
+  command: dd if=/dev/zero of={{ item }} bs=1M count=10
+  loop:
+    - "{{ asm_data_partition }}"
+    - "{{ asm_fra_partition }}"
+  changed_when: false
+
+# Belt-and-suspenders: also strip any filesystem signatures wipefs recognises.
 - name: Wipe filesystem signatures from ASM partitions
   command: wipefs -af {{ item }}
   loop:
