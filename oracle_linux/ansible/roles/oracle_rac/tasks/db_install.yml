@@ -39,6 +39,53 @@
     var: db_install_result.stdout_lines
   when: inventory_hostname == oracle_node1_hostname
 
+# =============================================================================
+# Verify the DB home was cloned to every cluster node.
+#
+# The installer SSH-clones the home from node1 to all other nodes listed in
+# oracle.install.db.CLUSTER_NODES.  This cloning is skipped when the
+# installer detects the home already exists on node1 (re-runs / rc=6 path),
+# leaving non-primary nodes without a DB home if a prior run was interrupted
+# before cloning completed.
+#
+# Fallback: copy the DB zip from the control node and extract it locally –
+# identical to what pre_install.yml does for node1.
+# =============================================================================
+- name: Check if DB home root.sh exists on this node
+  stat:
+    path: "{{ oracle_home }}/root.sh"
+  register: db_home_rootsh_stat
+
+- name: Copy Oracle DB zip to staging (fallback when installer cloning did not reach this node)
+  copy:
+    src: "{{ local_installer_src }}/{{ oracle_db_zip }}"
+    dest: "{{ installer_stage }}/{{ oracle_db_zip }}"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+  when:
+    - inventory_hostname != oracle_node1_hostname
+    - not db_home_rootsh_stat.stat.exists
+
+- name: Extract Oracle DB zip on this node (fallback – replaces failed installer SSH cloning)
+  become_user: "{{ oracle_user }}"
+  unarchive:
+    src: "{{ installer_stage }}/{{ oracle_db_zip }}"
+    dest: "{{ oracle_home }}"
+    remote_src: true
+    creates: "{{ oracle_home }}/root.sh"
+  when:
+    - inventory_hostname != oracle_node1_hostname
+    - not db_home_rootsh_stat.stat.exists
+
+- name: Remove DB installer zip from staging after fallback extraction
+  file:
+    path: "{{ installer_stage }}/{{ oracle_db_zip }}"
+    state: absent
+  when:
+    - inventory_hostname != oracle_node1_hostname
+    - not db_home_rootsh_stat.stat.exists
+
 - name: Run DB home root.sh on ALL nodes (node1 first)
   command: "{{ oracle_home }}/root.sh"
   register: db_root_result
