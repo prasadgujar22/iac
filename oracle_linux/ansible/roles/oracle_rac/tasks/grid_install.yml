@@ -29,7 +29,7 @@
 # already built and configured everything via SSH.
 - name: Find libclntshcore.so.19.1 in Grid or Oracle DB home (node1 only)
   shell: >
-    find {{ grid_home }} {{ oracle_home }}
+    find {{ grid_home }} {{ oracle_home }} /usr/lib64
     -name "libclntshcore.so.19.1" 2>/dev/null | head -1
   register: libclntshcore_find
   changed_when: false
@@ -92,11 +92,15 @@
 #   "undefined reference to `fstatat@GLIBC_2.33'"
 # syscall() has been available as GLIBC_2.0 since the dawn of Linux glibc and
 # is present in every Oracle stub set, so it resolves cleanly.
-- name: Install gcc for stat() shim compilation (node1 only)
+# gcc, shim source, compilation, and ldconfig run on ALL nodes.
+# root.sh relinks the GI oracle binary on every node it runs on; the
+# sysliblist (modified on node1 before gridSetup.sh, then synced to
+# node2 via SSH by the installer) references -lorastat_compat, so the
+# library must exist in /usr/lib64 on every node before root.sh runs.
+- name: Install gcc for stat() shim compilation (all nodes)
   package:
     name: gcc
     state: present
-  when: inventory_hostname == oracle_node1_hostname
 
 - name: Write stat() compatibility shim source (glibc 2.33+ / OL9 workaround)
   copy:
@@ -116,20 +120,20 @@
       { return (int)syscall(SYS_newfstatat, AT_FDCWD, pathname, statbuf, 0); }
     dest: /tmp/oracle_stat_compat.c
     mode: '0644'
-  when: inventory_hostname == oracle_node1_hostname
 
 - name: Compile stat() shim into shared library (/usr/lib64/liborastat_compat.so)
   command: >
     gcc -shared -fPIC -O2
     -o /usr/lib64/liborastat_compat.so
     /tmp/oracle_stat_compat.c
-  when: inventory_hostname == oracle_node1_hostname
 
-- name: Rebuild dynamic linker cache to register stat() shim
+- name: Rebuild dynamic linker cache to register stat() shim (all nodes)
   command: ldconfig
   changed_when: false
-  when: inventory_hostname == oracle_node1_hostname
 
+# sysliblist lives inside the GI home; only node1 modifies it before the
+# installer runs.  node2 receives the modified file via the installer's SSH
+# push, so prepending -lorastat_compat is a node1-only operation.
 - name: Prepend stat() shim to Oracle GI sysliblist (picked up by all orald calls)
   lineinfile:
     path: "{{ grid_home }}/lib/sysliblist"
@@ -242,12 +246,19 @@
       when: grid_root_result is defined
     # root.sh writes a per-node log to grid_home/install/root_<hostname>_*.log;
     # tail it so any failure reason is visible without SSH.
-    - name: Show root.sh log (most recent root_<hostname>_*.log)
+    - name: Show root.sh log (most recent root_<hostname>_*.log and relink.log)
       shell: |
         logfile=$(ls -t "{{ grid_home }}/install/root_$(hostname)_"*.log 2>/dev/null | head -1)
-        if [ -z "$logfile" ]; then echo "No root.sh log found."; exit 0; fi
-        echo "=== $logfile (last 80 lines) ==="
-        tail -80 "$logfile"
+        if [ -z "$logfile" ]; then echo "No root.sh log found."; else
+          echo "=== $logfile (last 80 lines) ==="
+          tail -80 "$logfile"
+        fi
+        relink_log="{{ grid_home }}/install/relink.log"
+        if [ -f "$relink_log" ]; then
+          echo ""
+          echo "=== $relink_log (last 40 lines) ==="
+          tail -40 "$relink_log"
+        fi
       args:
         executable: /bin/bash
       register: root_sh_log
