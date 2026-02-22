@@ -14,27 +14,32 @@
   changed_when: false
 
 # kfod.bin (the disk validator the GI installer forks) links against
-# libclntshcore.so.19.1.  On OL9, LD_LIBRARY_PATH and /etc/ld.so.conf.d/
-# entries are not enough because gridSetup.sh may reset LD_LIBRARY_PATH
-# before forking kfod.bin, and ldconfig only caches files that actually exist
-# at the configured path.  The reliable fix is to find the library wherever
-# it lives inside the Grid home and symlink it into /usr/lib64/ – which is
-# always in the system linker's search path regardless of environment.
-# This must run on ALL nodes because the installer also forks kfod.bin on
-# remote nodes via SSH during the cluster-wide disk discovery pass.
-- name: Find libclntshcore.so.19.1 in Grid home
-  shell: find {{ grid_home }} -name "libclntshcore.so.19.1" 2>/dev/null | head -1
+# libclntshcore.so.19.1.  This library is NOT included in the Grid
+# Infrastructure zip; it ships with the Oracle Database software.
+# Because both the GI and DB zips are already extracted on node1 before this
+# play runs (Phase 2 – pre_install), we search both homes and create a symlink
+# in /usr/lib64/ (always in the system linker's search path) so kfod.bin can
+# load it regardless of what gridSetup.sh does with LD_LIBRARY_PATH.
+# Only node1 needs this at installer-validation time; node2 runs orainstRoot
+# and root.sh after the installer has already configured it from node1.
+- name: Find libclntshcore.so.19.1 in Grid or Oracle DB home (node1 only)
+  shell: >
+    find {{ grid_home }} {{ oracle_home }}
+    -name "libclntshcore.so.19.1" 2>/dev/null | head -1
   register: libclntshcore_find
   changed_when: false
   failed_when: false
+  when: inventory_hostname == oracle_node1_hostname
 
-- name: Fail if libclntshcore.so.19.1 is not present in the Grid home
+- name: Fail if libclntshcore.so.19.1 not found in Grid or Oracle DB home
   fail:
     msg: >
-      libclntshcore.so.19.1 was not found anywhere under {{ grid_home }}.
-      The GI zip may be incomplete or was not fully extracted.
-      Verify that {{ grid_home }}/lib/libclntshcore.so.19.1 exists.
-  when: libclntshcore_find.stdout | trim == ''
+      libclntshcore.so.19.1 was not found in {{ grid_home }} or {{ oracle_home }}.
+      Ensure both the GI zip ({{ oracle_gi_zip }}) and the DB zip
+      ({{ oracle_db_zip }}) have been fully extracted before this play runs.
+  when:
+    - inventory_hostname == oracle_node1_hostname
+    - libclntshcore_find.stdout | trim == ''
 
 - name: Symlink libclntshcore.so.19.1 into /usr/lib64 (kfod.bin runtime dep)
   file:
@@ -42,7 +47,9 @@
     dest: /usr/lib64/libclntshcore.so.19.1
     state: link
     force: true
-  when: libclntshcore_find.stdout | trim != ''
+  when:
+    - inventory_hostname == oracle_node1_hostname
+    - libclntshcore_find.stdout | trim != ''
 
 - name: Rebuild dynamic linker cache after adding Oracle library symlink
   command: ldconfig
