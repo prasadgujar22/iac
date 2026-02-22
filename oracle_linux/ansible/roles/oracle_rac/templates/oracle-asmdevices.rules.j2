@@ -7,5 +7,5 @@
 #
 # Reload:  udevadm control --reload-rules && udevadm trigger
 
-KERNEL=="{{ asm_data_disk | basename }}", SUBSYSTEM=="block", OWNER="{{ grid_user }}", GROUP="asmadmin", MODE="0660"
-KERNEL=="{{ asm_fra_disk | basename }}",  SUBSYSTEM=="block", OWNER="{{ grid_user }}", GROUP="asmadmin", MODE="0660"
+KERNEL=="{{ asm_data_partition | basename }}", SUBSYSTEM=="block", OWNER="{{ grid_user }}", GROUP="asmadmin", MODE="0660"
+KERNEL=="{{ asm_fra_partition | basename }}",  SUBSYSTEM=="block", OWNER="{{ grid_user }}", GROUP="asmadmin", MODE="0660"
