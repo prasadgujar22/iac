@@ -51,10 +51,15 @@
       shell: |
         logdir=$(ls -dt /u01/app/oraInventory/logs/GridSetupActions* 2>/dev/null | head -1)
         if [ -z "$logdir" ]; then echo "No GI log directory found."; exit 0; fi
-        logfile=$(ls -t "$logdir"/*.log 2>/dev/null | head -1)
+        # gridSetupActions*.log is the detailed installer log; time*.log is only
+        # the state-machine trace and has no diagnostic content.
+        logfile=$(ls -t "$logdir"/gridSetupActions*.log 2>/dev/null | head -1)
+        if [ -z "$logfile" ]; then
+          logfile=$(ls -t "$logdir"/*.log 2>/dev/null | head -1)
+        fi
         if [ -z "$logfile" ]; then echo "No log file in $logdir"; exit 0; fi
-        echo "=== $logfile (last 80 lines) ==="
-        tail -80 "$logfile"
+        echo "=== $logfile (last 100 lines) ==="
+        tail -100 "$logfile"
       args:
         executable: /bin/bash
       register: gi_log_tail
