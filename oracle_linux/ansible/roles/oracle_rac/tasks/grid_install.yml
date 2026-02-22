@@ -214,17 +214,51 @@
   command: /u01/app/oraInventory/orainstRoot.sh
   register: orainst_result
   changed_when: orainst_result.rc == 0
+  when: not orainst_loc_stat.stat.exists
   ignore_errors: true
+
+# root.sh configures and starts CRS on each node.  It writes /etc/oracle/olr.loc
+# on success; skip the entire step if that sentinel already exists so that
+# re-runs on a live cluster do not fail with rc=2 ("already configured").
+- name: Check if CRS root configuration already applied (olr.loc sentinel)
+  stat:
+    path: /etc/oracle/olr.loc
+  register: olr_loc_stat
 
 - name: Run grid root.sh on ALL nodes (sequentially – node1 then node2)
   command: "{{ grid_home }}/root.sh"
   register: grid_root_result
   changed_when: grid_root_result.rc == 0
-  # Run on node1 first, then node2 – enforce with serial: 1 in playbook
+  when: not olr_loc_stat.stat.exists
+  # Run on node1 first, then node2 – enforced by serial: 1 in the playbook
 
 - name: Show grid root.sh output
   debug:
     var: grid_root_result.stdout_lines
+  when: grid_root_result is not skipped
+
+# Tail the per-node root.sh log so failures are visible without SSH.
+# root.sh always prints "Check <logfile> for the output of root script"
+# as its first stdout line; extract and display that file.
+- name: Show root.sh log (most recent root_<hostname>_*.log)
+  shell: |
+    logfile=$(ls -t "{{ grid_home }}/install/root_$(hostname)_"*.log 2>/dev/null | head -1)
+    if [ -z "$logfile" ]; then echo "No root.sh log found."; exit 0; fi
+    echo "=== $logfile (last 80 lines) ==="
+    tail -80 "$logfile"
+  args:
+    executable: /bin/bash
+  register: root_sh_log
+  changed_when: false
+  failed_when: false
+  when: not olr_loc_stat.stat.exists
+
+- name: Print root.sh log
+  debug:
+    var: root_sh_log.stdout_lines
+  when:
+    - not olr_loc_stat.stat.exists
+    - root_sh_log is defined
 
 - when: inventory_hostname == oracle_node1_hostname
   block:
