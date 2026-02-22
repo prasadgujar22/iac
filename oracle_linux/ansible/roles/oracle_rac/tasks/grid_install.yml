@@ -82,6 +82,16 @@
 # install it into /usr/lib64, and prepend it to the GI home's sysliblist so
 # every orald invocation picks it up automatically — without touching the
 # Oracle makefiles.
+#
+# Implementation note: the shim uses syscall(SYS_newfstatat, …) rather than
+# calling fstatat() directly.  fstatat() was given the versioned symbol
+# fstatat@GLIBC_2.33 in glibc 2.33 (64-bit stat ABI cleanup); Oracle 19c ships
+# OL7-era libc stubs in grid/lib/stubs/ that predate glibc 2.33 and do not
+# export that versioned symbol.  When orald links tnsping / itnsping it searches
+# those stubs first and fails with:
+#   "undefined reference to `fstatat@GLIBC_2.33'"
+# syscall() has been available as GLIBC_2.0 since the dawn of Linux glibc and
+# is present in every Oracle stub set, so it resolves cleanly.
 - name: Install gcc for stat() shim compilation (node1 only)
   package:
     name: gcc
@@ -94,11 +104,16 @@
       #define _GNU_SOURCE
       #include <sys/stat.h>
       #include <sys/types.h>
+      #include <sys/syscall.h>
       #include <fcntl.h>
+      #include <unistd.h>
       /* Re-export stat() as a real function for Oracle 19c static archives
-       * compiled on OL7 where stat was a genuine external symbol. */
+       * compiled on OL7 where stat was a genuine external symbol.
+       * Use syscall(SYS_newfstatat) rather than fstatat() to avoid the
+       * fstatat@GLIBC_2.33 versioned symbol that Oracle's OL7-era stubs
+       * do not export. */
       int stat(const char *pathname, struct stat *statbuf)
-      { return fstatat(AT_FDCWD, pathname, statbuf, 0); }
+      { return (int)syscall(SYS_newfstatat, AT_FDCWD, pathname, statbuf, 0); }
     dest: /tmp/oracle_stat_compat.c
     mode: '0644'
   when: inventory_hostname == oracle_node1_hostname
