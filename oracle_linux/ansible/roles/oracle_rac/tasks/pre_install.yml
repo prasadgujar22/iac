@@ -200,9 +200,10 @@
     src: /etc/ssh/ssh_host_ed25519_key.pub
   register: node_host_ed25519_key
 
-# Write known_hosts for oracle user – one blockinfile block per cluster node so the
-# task is idempotent (re-runs overwrite the same marked section).
-- name: Write known_hosts for oracle user (hostname-keyed entries from /etc/ssh)
+# Write known_hosts entries keyed by both hostname AND IP so the Oracle GI installer
+# can connect either way without host-key verification errors.  One blockinfile block
+# per node keeps the task fully idempotent on re-runs.
+- name: Write known_hosts for oracle user (hostname + IP entries from /etc/ssh)
   blockinfile:
     path: /home/{{ oracle_user }}/.ssh/known_hosts
     create: yes
@@ -214,9 +215,13 @@
       {{ item }} {{ hostvars[item]['node_host_rsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
       {{ item }} {{ hostvars[item]['node_host_ecdsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
       {{ item }} {{ hostvars[item]['node_host_ed25519_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ hostvars[item]['ansible_host'] }} {{ hostvars[item]['node_host_rsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ hostvars[item]['ansible_host'] }} {{ hostvars[item]['node_host_ecdsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ hostvars[item]['ansible_host'] }} {{ hostvars[item]['node_host_ed25519_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
   loop: "{{ groups['rac_nodes'] }}"
 
-- name: Write known_hosts for grid user (hostname-keyed entries from /etc/ssh)
+# Write known_hosts for grid user – same hostname + IP dual-entry approach.
+- name: Write known_hosts for grid user (hostname + IP entries from /etc/ssh)
   blockinfile:
     path: /home/{{ grid_user }}/.ssh/known_hosts
     create: yes
@@ -228,11 +233,20 @@
       {{ item }} {{ hostvars[item]['node_host_rsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
       {{ item }} {{ hostvars[item]['node_host_ecdsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
       {{ item }} {{ hostvars[item]['node_host_ed25519_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ hostvars[item]['ansible_host'] }} {{ hostvars[item]['node_host_rsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ hostvars[item]['ansible_host'] }} {{ hostvars[item]['node_host_ecdsa_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
+      {{ hostvars[item]['ansible_host'] }} {{ hostvars[item]['node_host_ed25519_key']['content'] | b64decode | trim | regex_replace('^(\S+\s+\S+).*$', '\1') }}
   loop: "{{ groups['rac_nodes'] }}"
+
+- name: Verify passwordless SSH works for oracle user (fail fast before GI installer)
+  become_user: "{{ oracle_user }}"
+  command: ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 {{ item }} hostname
+  loop: "{{ groups['rac_nodes'] }}"
+  changed_when: false
 
 - name: Verify passwordless SSH works for grid user (fail fast before GI installer)
   become_user: "{{ grid_user }}"
-  command: ssh -o BatchMode=yes -o ConnectTimeout=10 {{ item }} hostname
+  command: ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 {{ item }} hostname
   loop: "{{ groups['rac_nodes'] }}"
   changed_when: false
 
