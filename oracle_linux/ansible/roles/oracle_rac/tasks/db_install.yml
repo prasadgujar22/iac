@@ -86,11 +86,26 @@
     - inventory_hostname != oracle_node1_hostname
     - not db_home_rootsh_stat.stat.exists
 
+# Oracle root.sh creates root_<hostname>_<timestamp>.log in
+# $ORACLE_HOME/install/ on first execution – identical pattern to how
+# grid_install.yml uses olr.loc as the CRS sentinel.  Presence of this
+# file means root.sh already ran on this node; skip it to avoid spurious
+# non-zero exits on re-runs which would drop the node from subsequent plays
+# (DBCA) even though the DB home is correctly configured.
+- name: Check if DB home root.sh was already run on this node (log sentinel)
+  find:
+    paths: "{{ oracle_home }}/install"
+    patterns: "root_{{ inventory_hostname }}_*.log"
+  register: db_rootsh_log_check
+  failed_when: false
+
 - name: Run DB home root.sh on ALL nodes (node1 first)
   command: "{{ oracle_home }}/root.sh"
   register: db_root_result
   changed_when: db_root_result.rc == 0
+  when: db_rootsh_log_check.matched == 0
 
 - name: Show root.sh output
   debug:
     var: db_root_result.stdout_lines
+  when: db_rootsh_log_check.matched == 0 and db_root_result is defined
