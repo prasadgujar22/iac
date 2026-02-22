@@ -12,23 +12,45 @@
 # diskDiscoveryString=/dev/sd[b-z]1.
 # =============================================================================
 
+# Detect whether node1 already has CRS configured (root.sh succeeded on a
+# previous run and wrote /etc/oracle/olr.loc).  If it does, ASM partitions
+# contain live OCR and voting-disk data; re-running the destructive wipe/dd/
+# parted tasks would destroy that data and leave the cluster unrecoverable.
+# Non-destructive tasks (udev rules, ownership) are always re-applied.
+#
+# serial: 1 in the play guarantees that node1's batch completes – and its
+# hostvars are populated – before node2's batch starts, so node2 can safely
+# read hostvars[oracle_node1_hostname].node_crs_configured.
+- name: Stat /etc/oracle/olr.loc to detect existing CRS configuration
+  stat:
+    path: /etc/oracle/olr.loc
+  register: asm_disk_olr_stat
+
+- name: Set node_crs_configured fact (shared via hostvars across serial batches)
+  set_fact:
+    node_crs_configured: "{{ asm_disk_olr_stat.stat.exists }}"
+
 # --- Wipe existing state from the parent disks ---
 
 - name: Wipe signatures from DATA disk
   command: wipefs -af {{ asm_data_disk }}
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 - name: Wipe signatures from FRA disk
   command: wipefs -af {{ asm_fra_disk }}
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 - name: Zero the first MB of DATA disk
   command: dd if=/dev/zero of={{ asm_data_disk }} bs=1M count=1
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 - name: Zero the first MB of FRA disk
   command: dd if=/dev/zero of={{ asm_fra_disk }} bs=1M count=1
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 # --- Create a single GPT partition spanning the full disk ---
 # The GI 19c installer validates partitions correctly but rejects whole-disk
@@ -37,10 +59,12 @@
 - name: Create GPT partition on DATA disk
   command: parted -s {{ asm_data_disk }} mklabel gpt mkpart primary 0% 100%
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 - name: Create GPT partition on FRA disk
   command: parted -s {{ asm_fra_disk }} mklabel gpt mkpart primary 0% 100%
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 # Force the kernel to re-read the new partition tables.
 - name: Inform kernel of new partition tables
@@ -49,6 +73,7 @@
     - "{{ asm_data_disk }}"
     - "{{ asm_fra_disk }}"
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 # Give the kernel a moment to create the partition device nodes.
 - name: Wait for ASM partition devices to appear
@@ -59,6 +84,7 @@
   loop:
     - "{{ asm_data_partition }}"
     - "{{ asm_fra_partition }}"
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 # CRITICAL: The partition data area begins at exactly the 1 MiB boundary of
 # the physical disk – the precise byte where the parent-disk dd wipe stops.
@@ -73,6 +99,7 @@
     - "{{ asm_data_partition }}"
     - "{{ asm_fra_partition }}"
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 # Belt-and-suspenders: also strip any filesystem signatures wipefs recognises.
 - name: Wipe filesystem signatures from ASM partitions
@@ -81,6 +108,7 @@
     - "{{ asm_data_partition }}"
     - "{{ asm_fra_partition }}"
   changed_when: false
+  when: not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
 # --- udev rules: persistent ownership on every boot ---
 
