@@ -82,6 +82,12 @@
 # install it into /usr/lib64, and prepend it to the GI home's sysliblist so
 # every orald invocation picks it up automatically — without touching the
 # Oracle makefiles.
+- name: Install gcc for stat() shim compilation (node1 only)
+  package:
+    name: gcc
+    state: present
+  when: inventory_hostname == oracle_node1_hostname
+
 - name: Write stat() compatibility shim source (glibc 2.33+ / OL9 workaround)
   copy:
     content: |
