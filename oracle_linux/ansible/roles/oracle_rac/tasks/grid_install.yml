@@ -123,8 +123,6 @@
     gcc -shared -fPIC -O2
     -o /usr/lib64/liborastat_compat.so
     /tmp/oracle_stat_compat.c
-  args:
-    creates: /usr/lib64/liborastat_compat.so
   when: inventory_hostname == oracle_node1_hostname
 
 - name: Rebuild dynamic linker cache to register stat() shim
