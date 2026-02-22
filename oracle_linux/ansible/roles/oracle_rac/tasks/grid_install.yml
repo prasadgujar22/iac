@@ -226,23 +226,65 @@
   debug:
     var: grid_root_result.stdout_lines
 
-- name: Execute Grid Configuration Assistant (GRIDCA) – node1 only
-  become_user: "{{ grid_user }}"
-  command: >
-    {{ grid_home }}/gridSetup.sh
-    -silent
-    -executeConfigTools
-    -responseFile {{ installer_stage }}/grid_install.rsp
-    -ignorePrereqFailure
-  environment:
-    CV_ASSUME_DISTID: OEL7.6
-    LD_LIBRARY_PATH: "{{ grid_home }}/lib"
-  register: gridca_result
-  failed_when: gridca_result.rc not in [0, 6]
-  changed_when: true
-  when: inventory_hostname == oracle_node1_hostname
-  async: 1800
-  poll: 30
+- when: inventory_hostname == oracle_node1_hostname
+  block:
+    - name: Execute Grid Configuration Assistant (GRIDCA) – node1 only
+      become_user: "{{ grid_user }}"
+      command: >
+        {{ grid_home }}/gridSetup.sh
+        -silent
+        -executeConfigTools
+        -responseFile {{ installer_stage }}/grid_install.rsp
+        -ignorePrereqFailure
+      environment:
+        CV_ASSUME_DISTID: OEL7.6
+        LD_LIBRARY_PATH: "{{ grid_home }}/lib"
+      register: gridca_result
+      failed_when: gridca_result.rc not in [0, 6]
+      changed_when: true
+      async: 1800
+      poll: 30
+  always:
+    # -executeConfigTools creates its own GridSetupActions<timestamp> directory;
+    # show it so any CA failure is visible without manual SSH.
+    - name: Show GRIDCA session log (most recent GridSetupActions directory)
+      shell: |
+        logdir=$(ls -dt /u01/app/oraInventory/logs/GridSetupActions* 2>/dev/null | head -1)
+        if [ -z "$logdir" ]; then echo "No GRIDCA log directory found."; exit 0; fi
+        logfile=$(ls -t "$logdir"/gridSetupActions*.log 2>/dev/null | head -1)
+        if [ -z "$logfile" ]; then
+          logfile=$(ls -t "$logdir"/*.log 2>/dev/null | head -1)
+        fi
+        if [ -z "$logfile" ]; then echo "No log file in $logdir"; exit 0; fi
+        echo "=== $logfile (last 100 lines) ==="
+        tail -100 "$logfile"
+      args:
+        executable: /bin/bash
+      register: gridca_main_log
+      changed_when: false
+      failed_when: false
+    - name: Print GRIDCA session log
+      debug:
+        var: gridca_main_log.stdout_lines
+    # Per-assistant logs (crsconfig, netca, asmca) name the exact step that failed.
+    - name: Show config tool logs (crsconfig / netca / asmca – most recent file each)
+      shell: |
+        cfgdir="{{ grid_home }}/cfgtoollogs"
+        [ -d "$cfgdir" ] || { echo "No cfgtoollogs directory."; exit 0; }
+        for subdir in crsconfig netca asmca; do
+          logfile=$(ls -t "$cfgdir/$subdir/"*.log 2>/dev/null | head -1)
+          [ -n "$logfile" ] || continue
+          echo "=== $logfile (last 60 lines) ==="
+          tail -60 "$logfile"
+        done
+      args:
+        executable: /bin/bash
+      register: gridca_cfgtool_logs
+      changed_when: false
+      failed_when: false
+    - name: Print config tool logs
+      debug:
+        var: gridca_cfgtool_logs.stdout_lines
 
 - name: Verify clusterware is running
   become_user: "{{ grid_user }}"
