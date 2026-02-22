@@ -70,6 +70,55 @@
   command: ldconfig
   changed_when: false
 
+# Oracle 19c GI static archives (libnnzst19.a, libnnz19.a …) were compiled on
+# OL7 / glibc 2.17 where stat() was a real external symbol in libc.so.6.
+# On OL9 / glibc 2.33+, stat() was reimplemented as an inline wrapper around
+# the statx() syscall and is no longer exported as a linkable symbol from
+# libc.so.6.  When the GI installer's make step links orion and other binaries
+# against those static archives the GNU linker fails with:
+#   "undefined reference to `stat'"
+#
+# Fix: compile a shim shared library that re-exports stat() as a real function,
+# install it into /usr/lib64, and prepend it to the GI home's sysliblist so
+# every orald invocation picks it up automatically — without touching the
+# Oracle makefiles.
+- name: Write stat() compatibility shim source (glibc 2.33+ / OL9 workaround)
+  copy:
+    content: |
+      #define _GNU_SOURCE
+      #include <sys/stat.h>
+      #include <sys/types.h>
+      #include <fcntl.h>
+      /* Re-export stat() as a real function for Oracle 19c static archives
+       * compiled on OL7 where stat was a genuine external symbol. */
+      int stat(const char *pathname, struct stat *statbuf)
+      { return fstatat(AT_FDCWD, pathname, statbuf, 0); }
+    dest: /tmp/oracle_stat_compat.c
+    mode: '0644'
+  when: inventory_hostname == oracle_node1_hostname
+
+- name: Compile stat() shim into shared library (/usr/lib64/liborastat_compat.so)
+  command: >
+    gcc -shared -fPIC -O2
+    -o /usr/lib64/liborastat_compat.so
+    /tmp/oracle_stat_compat.c
+  args:
+    creates: /usr/lib64/liborastat_compat.so
+  when: inventory_hostname == oracle_node1_hostname
+
+- name: Rebuild dynamic linker cache to register stat() shim
+  command: ldconfig
+  changed_when: false
+  when: inventory_hostname == oracle_node1_hostname
+
+- name: Prepend stat() shim to Oracle GI sysliblist (picked up by all orald calls)
+  lineinfile:
+    path: "{{ grid_home }}/lib/sysliblist"
+    line: "-lorastat_compat"
+    regexp: "-lorastat_compat"
+    insertbefore: BOF
+  when: inventory_hostname == oracle_node1_hostname
+
 - name: Generate Grid Infrastructure response file
   template:
     src: grid_install_response.j2
