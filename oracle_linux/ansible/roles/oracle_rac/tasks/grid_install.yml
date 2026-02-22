@@ -5,15 +5,34 @@
 # Run on node1 first; the installer automatically configures node2 via SSH
 # =============================================================================
 
-# Pre-flight: confirm grid user can actually open each ASM partition.
-# This catches permission failures immediately with a clear message rather than
-# waiting ~40 s for gridSetup.sh to fail with [INS-30508] / [INS-30515].
 - name: Pre-flight – verify grid user can read ASM partitions
   become_user: "{{ grid_user }}"
   command: dd if={{ item }} of=/dev/null bs=512 count=1
   loop:
     - "{{ asm_data_partition }}"
     - "{{ asm_fra_partition }}"
+  changed_when: false
+
+# kfod.bin (the ASM disk discovery tool the GI installer forks to validate
+# disks) links against libclntshcore.so.19.1 which lives in the Grid home's
+# lib directory.  On OL9 that path is not in the default linker search paths,
+# so kfod.bin exits with code 127 ("No such file or directory") and the
+# installer can discover no disks → [INS-30508] + [INS-30515].
+#
+# Fix: register the Grid home lib directory with the system dynamic linker on
+# EVERY cluster node (kfod.bin is also invoked on remote nodes via SSH during
+# disk discovery) and set LD_LIBRARY_PATH in the installer environment as a
+# belt-and-suspenders fallback.
+- name: Register Grid home library path with system dynamic linker
+  copy:
+    content: "{{ grid_home }}/lib\n"
+    dest: /etc/ld.so.conf.d/oracle-grid.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Rebuild dynamic linker cache (ldconfig)
+  command: ldconfig
   changed_when: false
 
 - name: Generate Grid Infrastructure response file
@@ -36,6 +55,7 @@
         -ignorePrereqFailure
       environment:
         CV_ASSUME_DISTID: OEL7.6
+        LD_LIBRARY_PATH: "{{ grid_home }}/lib"
       register: gi_install_result
       failed_when: >
         gi_install_result.rc not in [0, 6] and
@@ -96,6 +116,7 @@
     -ignorePrereqFailure
   environment:
     CV_ASSUME_DISTID: OEL7.6
+    LD_LIBRARY_PATH: "{{ grid_home }}/lib"
   register: gridca_result
   failed_when: gridca_result.rc not in [0, 6]
   changed_when: true
