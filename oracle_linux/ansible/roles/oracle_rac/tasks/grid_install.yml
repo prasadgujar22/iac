@@ -166,9 +166,21 @@
   file:
     path: "{{ oracle_inventory }}"
     state: absent
-  when: not orainst_loc_stat.stat.exists
+  # Only wipe the inventory when the GI installer has NOT yet run successfully
+  # on node1 (node_crs_configured = false).  If CRS is already configured on
+  # node1, the inventory was written by that run and contains orainstRoot.sh
+  # which node2 still needs to register its own inventory; deleting it would
+  # break node2's orainstRoot.sh step on every re-run attempt.
+  when:
+    - not orainst_loc_stat.stat.exists
+    - not (hostvars[oracle_node1_hostname].node_crs_configured | default(false))
 
-- when: inventory_hostname == oracle_node1_hostname
+- when:
+    - inventory_hostname == oracle_node1_hostname
+    # Skip if CRS is already configured – root.sh has already run and written
+    # olr.loc.  Re-running gridSetup.sh on a live cluster can corrupt it, and
+    # the installer returning rc=6 would still require an extra ~6 minutes.
+    - not node_crs_configured
   block:
     - name: Run Grid Infrastructure installer (silent) – node1 only
       become_user: "{{ grid_user }}"
