@@ -13,15 +13,20 @@
     - "{{ asm_fra_partition }}"
   changed_when: false
 
-# kfod.bin (the disk validator the GI installer forks) links against
-# libclntshcore.so.19.1.  This library is NOT included in the Grid
-# Infrastructure zip; it ships with the Oracle Database software.
-# Because both the GI and DB zips are already extracted on node1 before this
-# play runs (Phase 2 – pre_install), we search both homes and create a symlink
-# in /usr/lib64/ (always in the system linker's search path) so kfod.bin can
-# load it regardless of what gridSetup.sh does with LD_LIBRARY_PATH.
-# Only node1 needs this at installer-validation time; node2 runs orainstRoot
-# and root.sh after the installer has already configured it from node1.
+# libclntshcore.so is NOT included in the Grid Infrastructure zip; it ships
+# with the Oracle Database software.  The GI installer needs it in two ways:
+#
+#   1. Runtime (kfod.bin, validation phase): needs libclntshcore.so.19.1
+#      to be loadable – satisfied by ldconfig knowing about the versioned file.
+#
+#   2. Link-time (make libasmperl19.so): orald passes -lclntshcore to
+#      /usr/bin/ld, which searches for the UNVERSIONED libclntshcore.so stub.
+#      Without it the build step fails with "cannot find -lclntshcore".
+#
+# We expose both names in /usr/lib64 (always on the system linker path) so
+# both phases work without touching the GI home directories.
+# Only node1 needs this; node2 runs orainstRoot/root.sh after node1 has
+# already built and configured everything via SSH.
 - name: Find libclntshcore.so.19.1 in Grid or Oracle DB home (node1 only)
   shell: >
     find {{ grid_home }} {{ oracle_home }}
@@ -41,7 +46,7 @@
     - inventory_hostname == oracle_node1_hostname
     - libclntshcore_find.stdout | trim == ''
 
-- name: Symlink libclntshcore.so.19.1 into /usr/lib64 (kfod.bin runtime dep)
+- name: Symlink libclntshcore.so.19.1 into /usr/lib64 (runtime – kfod.bin)
   file:
     src: "{{ libclntshcore_find.stdout | trim }}"
     dest: /usr/lib64/libclntshcore.so.19.1
@@ -51,7 +56,17 @@
     - inventory_hostname == oracle_node1_hostname
     - libclntshcore_find.stdout | trim != ''
 
-- name: Rebuild dynamic linker cache after adding Oracle library symlink
+- name: Symlink libclntshcore.so into /usr/lib64 (link-time – orald -lclntshcore)
+  file:
+    src: "{{ libclntshcore_find.stdout | trim }}"
+    dest: /usr/lib64/libclntshcore.so
+    state: link
+    force: true
+  when:
+    - inventory_hostname == oracle_node1_hostname
+    - libclntshcore_find.stdout | trim != ''
+
+- name: Rebuild dynamic linker cache after adding Oracle library symlinks
   command: ldconfig
   changed_when: false
 
