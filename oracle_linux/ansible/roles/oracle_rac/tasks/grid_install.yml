@@ -25,24 +25,45 @@
     mode: '0640'
   when: inventory_hostname == oracle_node1_hostname
 
-- name: Run Grid Infrastructure installer (silent) – node1 only
-  become_user: "{{ grid_user }}"
-  command: >
-    {{ grid_home }}/gridSetup.sh
-    -silent
-    -responseFile {{ installer_stage }}/grid_install.rsp
-    -ignorePrereqFailure
-  environment:
-    CV_ASSUME_DISTID: OEL7.6
-  register: gi_install_result
-  failed_when: >
-    gi_install_result.rc not in [0, 6] and
-    'Successfully Setup Software' not in gi_install_result.stdout
-  changed_when: >
-    'Successfully Setup Software' in gi_install_result.stdout
-  when: inventory_hostname == oracle_node1_hostname
-  async: 3600
-  poll: 30
+- when: inventory_hostname == oracle_node1_hostname
+  block:
+    - name: Run Grid Infrastructure installer (silent) – node1 only
+      become_user: "{{ grid_user }}"
+      command: >
+        {{ grid_home }}/gridSetup.sh
+        -silent
+        -responseFile {{ installer_stage }}/grid_install.rsp
+        -ignorePrereqFailure
+      environment:
+        CV_ASSUME_DISTID: OEL7.6
+      register: gi_install_result
+      failed_when: >
+        gi_install_result.rc not in [0, 6] and
+        'Successfully Setup Software' not in gi_install_result.stdout
+      changed_when: >
+        'Successfully Setup Software' in gi_install_result.stdout
+      async: 3600
+      poll: 30
+  always:
+    # Always show the last 80 lines of the most recent GI log so that any
+    # [INS-*] errors are visible in the Ansible output without manual SSH.
+    - name: Show GI installer log tail (most recent session)
+      shell: |
+        logdir=$(ls -dt /u01/app/oraInventory/logs/GridSetupActions* 2>/dev/null | head -1)
+        if [ -z "$logdir" ]; then echo "No GI log directory found."; exit 0; fi
+        logfile=$(ls -t "$logdir"/*.log 2>/dev/null | head -1)
+        if [ -z "$logfile" ]; then echo "No log file in $logdir"; exit 0; fi
+        echo "=== $logfile (last 80 lines) ==="
+        tail -80 "$logfile"
+      args:
+        executable: /bin/bash
+      register: gi_log_tail
+      changed_when: false
+      failed_when: false
+    - name: Print GI installer log
+      debug:
+        var: gi_log_tail.stdout_lines
+      when: gi_log_tail is defined
 
 - name: Run orainstRoot.sh on ALL nodes
   command: /u01/app/oraInventory/orainstRoot.sh
