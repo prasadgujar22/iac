@@ -64,6 +64,23 @@
     mode: '0640'
   when: inventory_hostname == oracle_node1_hostname
 
+# If a previous GI installer run failed before orainstRoot.sh had a chance to
+# create /etc/oraInst.loc, the Oracle inventory directory may already exist on
+# disk but contain no registered Oracle homes.  The GI installer treats any
+# non-empty directory at INVENTORY_LOCATION as a fatal conflict ([INS-32035])
+# and aborts immediately.  Clean up the stale directory on every node where
+# no oraInst.loc is present so the installer can create a fresh inventory.
+- name: Check whether Oracle inventory is registered (oraInst.loc present)
+  stat:
+    path: /etc/oraInst.loc
+  register: orainst_loc_stat
+
+- name: Remove stale Oracle inventory directory (no registered inventory found)
+  file:
+    path: "{{ oracle_inventory }}"
+    state: absent
+  when: not orainst_loc_stat.stat.exists
+
 - when: inventory_hostname == oracle_node1_hostname
   block:
     - name: Run Grid Infrastructure installer (silent) – node1 only
