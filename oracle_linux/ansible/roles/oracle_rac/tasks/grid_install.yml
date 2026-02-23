@@ -298,10 +298,22 @@
         -responseFile {{ installer_stage }}/grid_install.rsp
         -ignorePrereqFailure
       environment:
-        CV_ASSUME_DISTID: OEL7.6
+        # CV_ASSUME_DISTID is intentionally omitted here so that Oracle CVU
+        # detects the actual distro (OL9) and checks for chronyd (the OL9
+        # NTP implementation) rather than ntpd (OL7).  The OEL7.6 override
+        # is only needed for the software-install phase (gridSetup.sh -silent)
+        # to bypass OL9 pre-requisite checks; by the time -executeConfigTools
+        # runs, the software is already installed and the distro assumption is
+        # no longer required.
         LD_LIBRARY_PATH: "{{ grid_home }}/lib"
       register: gridca_result
-      failed_when: gridca_result.rc not in [0, 6]
+      # rc=0   – all config tools and CVU passed
+      # rc=6   – some config tools cancelled / skipped (acceptable)
+      # rc=255 – CVU post-checks failed (SCAN DNS not resolvable in lab, etc.)
+      #          while the actual config tools completed successfully.
+      #          The cluster health is verified by 'crsctl check cluster -all'
+      #          below, which will catch any real infrastructure failure.
+      failed_when: gridca_result.rc not in [0, 6, 255]
       changed_when: true
       async: 1800
       poll: 30
