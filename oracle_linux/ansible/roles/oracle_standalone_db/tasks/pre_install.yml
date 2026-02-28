@@ -40,15 +40,23 @@
       - libnsl2
     state: present
 
-# On OL9 (glibc 2.34+) libpthread was merged into libc; libpthread_nonshared.a
-# no longer exists as a standalone file.  Oracle 19c's ins_rdbms.mk explicitly
-# references it when building libasmclntsh19 / libasmperl19.
-- name: Create libpthread_nonshared.a compatibility symlink (OL9 / glibc-2.34+)
-  file:
-    src: /usr/lib64/libc_nonshared.a
-    dest: /usr/lib64/libpthread_nonshared.a
-    state: link
-    force: false      # do not overwrite if a real file already exists
+# On OL9 (glibc 2.34+) libpthread was merged into libc; both
+# libpthread_nonshared.a and libc_nonshared.a no longer ship at all.
+# Oracle 19c's ins_rdbms.mk references them at link time; creating empty stub
+# archives satisfies the linker — no real symbols are needed from these files.
+- name: Create libpthread_nonshared.a / libc_nonshared.a stubs (OL9 / glibc-2.34+)
+  shell: |
+    changed=0
+    for stub in /usr/lib64/libc_nonshared.a /usr/lib64/libpthread_nonshared.a; do
+      [ -e "$stub" ] && continue
+      ar crs "$stub"
+      changed=1
+    done
+    [ "$changed" -eq 1 ] && echo changed || echo ok
+  args:
+    executable: /bin/bash
+  register: stub_result
+  changed_when: "'changed' in stub_result.stdout"
 
 - name: Create libnsl.so linker stub for Oracle 19c on OL9
   shell: |
