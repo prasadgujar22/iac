@@ -53,14 +53,14 @@
 - name: Resize LVM PV to pick up new partition space
   command: pvresize "{{ root_partition.stdout | trim }}"
   changed_when: false
-  when: root_source.stdout | regex_search('mapper|dm-')
+  when: root_source.stdout | regex_search('mapper|dm-') is not none
 
 - name: Extend root LV to consume all free physical extents
   shell: lvextend -l +100%FREE "{{ root_source.stdout | trim }}" || true
   args:
     executable: /bin/bash
   changed_when: false
-  when: root_source.stdout | regex_search('mapper|dm-')
+  when: root_source.stdout | regex_search('mapper|dm-') is not none
 
 - name: Grow XFS root filesystem to fill logical volume or partition
   command: xfs_growfs /
