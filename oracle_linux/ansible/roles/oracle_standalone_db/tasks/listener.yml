@@ -1,0 +1,75 @@
+---
+# =============================================================================
+# oracle_standalone_db/tasks/listener.yml
+# Configure and start Oracle Net listener
+# Must run before DBCA so the DB can register its services on creation.
+# =============================================================================
+
+- name: Create Oracle Net admin directory
+  file:
+    path: "{{ oracle_home }}/network/admin"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0755'
+
+- name: Generate listener.ora
+  template:
+    src: listener.ora.j2
+    dest: "{{ oracle_home }}/network/admin/listener.ora"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+  notify: restart listener
+
+- name: Check if listener is already running
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    {{ oracle_home }}/bin/lsnrctl status {{ listener_name }}
+  register: lsnrctl_status
+  changed_when: false
+  failed_when: false
+
+- name: Start Oracle Net listener
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    {{ oracle_home }}/bin/lsnrctl start {{ listener_name }}
+  register: lsnrctl_start
+  changed_when: lsnrctl_start.rc == 0
+  failed_when: >
+    lsnrctl_start.rc != 0 and
+    'already running' not in lsnrctl_start.stdout
+  when: lsnrctl_status.rc != 0
+
+# Systemd unit enables the listener to survive a reboot.
+- name: Deploy Oracle listener systemd service
+  copy:
+    dest: /etc/systemd/system/oracle-listener.service
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Oracle Net Listener – {{ listener_name }}
+      After=network.target
+
+      [Service]
+      Type=forking
+      User={{ oracle_user }}
+      Environment=ORACLE_HOME={{ oracle_home }}
+      Environment=ORACLE_BASE={{ oracle_base }}
+      ExecStart={{ oracle_home }}/bin/lsnrctl start {{ listener_name }}
+      ExecStop={{ oracle_home }}/bin/lsnrctl stop {{ listener_name }}
+      ExecReload={{ oracle_home }}/bin/lsnrctl reload {{ listener_name }}
+      RemainAfterExit=yes
+      TimeoutStartSec=120
+
+      [Install]
+      WantedBy=multi-user.target
+  register: listener_service_file
+
+- name: Enable Oracle listener systemd service
+  systemd:
+    name: oracle-listener
+    daemon_reload: "{{ listener_service_file.changed }}"
+    enabled: true

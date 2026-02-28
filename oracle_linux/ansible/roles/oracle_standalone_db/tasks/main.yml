@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# oracle_standalone_db – role entry point
+# Individual task files are imported from the playbook via tasks_from.
+# =============================================================================
+
+- import_tasks: pre_install.yml
+  tags: [standalone_pre_install]
+
+- import_tasks: db_install.yml
+  tags: [standalone_db_install]
+
+- import_tasks: listener.yml
+  tags: [standalone_listener]
+
+- import_tasks: dbca.yml
+  tags: [standalone_dbca]

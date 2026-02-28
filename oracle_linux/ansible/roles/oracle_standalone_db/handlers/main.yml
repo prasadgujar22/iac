@@ -1,0 +1,7 @@
+---
+- name: Restart listener
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    {{ oracle_home }}/bin/lsnrctl reload {{ listener_name }}
+  listen: "restart listener"

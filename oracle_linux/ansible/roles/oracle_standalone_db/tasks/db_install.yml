@@ -1,0 +1,58 @@
+---
+# =============================================================================
+# oracle_standalone_db/tasks/db_install.yml
+# Oracle Database 19c software-only install (single-instance, no cluster)
+# =============================================================================
+
+- name: Generate DB installer response file
+  template:
+    src: db_install_response.j2
+    dest: "{{ installer_stage }}/db_install.rsp"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
+# CV_ASSUME_DISTID suppresses the OL9 / RHEL9 distro-unrecognised warning that
+# would otherwise abort the prerequisite check phase on OL9 with 19.3 binaries.
+- name: Run Oracle DB installer (silent, software only)
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ oracle_home }}/runInstaller
+    -silent
+    -responseFile {{ installer_stage }}/db_install.rsp
+    -ignorePrereqFailure
+    -skipPrereqs
+  environment:
+    CV_ASSUME_DISTID: OEL7.6
+  register: db_install_result
+  failed_when: >
+    db_install_result.rc not in [0, 6] and
+    'Successfully Setup Software' not in db_install_result.stdout
+  changed_when: >
+    'Successfully Setup Software' in db_install_result.stdout
+  async: 3600
+  poll: 30
+
+- name: Show DB installer output
+  debug:
+    var: db_install_result.stdout_lines
+
+# Presence of root_<hostname>_<timestamp>.log means root.sh already ran;
+# skip it on re-runs to avoid spurious non-zero exits.
+- name: Check if DB home root.sh was already run (log sentinel)
+  find:
+    paths: "{{ oracle_home }}/install"
+    patterns: "root_{{ inventory_hostname }}_*.log"
+  register: db_rootsh_log_check
+  failed_when: false
+
+- name: Run DB home root.sh
+  command: "{{ oracle_home }}/root.sh"
+  register: db_root_result
+  changed_when: db_root_result.rc == 0
+  when: db_rootsh_log_check.matched == 0
+
+- name: Show root.sh output
+  debug:
+    var: db_root_result.stdout_lines
+  when: db_rootsh_log_check.matched == 0 and db_root_result is defined

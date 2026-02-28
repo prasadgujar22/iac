@@ -1,0 +1,33 @@
+---
+# =============================================================================
+# Oracle 19c Standalone DB – group variables for [standalone_db]
+# JMS HA POC – single-instance database alternative to Oracle RAC
+# =============================================================================
+
+# --- Oracle RDBMS home ---
+oracle_home: /u01/app/oracle/product/19.0.0/dbhome_1
+oracle_db_version: 19.0.0
+
+# --- Database configuration ---
+oracle_db_name: JMSDB
+oracle_pdb_name: JMSPDB
+oracle_db_unique_name: JMSDB
+oracle_db_char_set: AL32UTF8
+oracle_db_nchar_set: AL16UTF16
+oracle_db_type: SINGLE
+oracle_memory_target_mb: 2048   # 2 GB SGA+PGA (adjust for your VM RAM)
+oracle_processes: 300
+
+# --- Filesystem storage paths (no ASM for standalone POC) ---
+oracle_data_dir: /u01/oradata
+oracle_fra_dir: /u01/fra
+oracle_fra_size_mb: 10240        # Fast Recovery Area size in MB (10 GB)
+
+# --- Oracle Net listener ---
+listener_name: LISTENER
+listener_port: 1521
+
+# --- Passwords (encrypt with ansible-vault in production) ---
+oracle_sys_password: Oracle_SYS_Passw0rd
+oracle_system_password: Oracle_SYS_Passw0rd
+oracle_dbsnmp_password: Oracle_SYS_Passw0rd

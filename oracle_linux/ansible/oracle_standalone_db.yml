@@ -1,0 +1,94 @@
+---
+# =============================================================================
+# oracle_standalone_db.yml – Oracle 19c single-instance database
+# JMS HA POC – use instead of oracle_rac.yml for a simpler one-node DB setup
+#
+# The DB node hosts Oracle 19c (CDB) with one PDB (JMSPDB).
+# WebLogic JDBC datasources connect via:
+#   jdbc:oracle:thin:@//192.168.29.125:1521/JMSPDB
+#
+# Run order:
+#   1. Common OS pre-requisites  (kernel params, users, packages)
+#   2. Oracle 19c DB pre-install (repos, OL9 compat, software extraction)
+#   3. Oracle 19c software-only install  (runInstaller, root.sh)
+#   4. Oracle Net listener  (listener.ora + lsnrctl start)  ← before DBCA
+#   5. Create JMSDB / JMSPDB via DBCA (silent)
+#
+# Usage:
+#   # Standalone DB only
+#   ansible-playbook -i inventory/hosts.ini oracle_standalone_db.yml
+#
+#   # Specific phase
+#   ansible-playbook -i inventory/hosts.ini oracle_standalone_db.yml --tags db_install
+#
+#   # Full POC stack (standalone DB + WebLogic)
+#   ansible-playbook -i inventory/hosts.ini oracle_standalone_db.yml
+#   ansible-playbook -i inventory/hosts.ini weblogic.yml
+#
+#   # Dry run
+#   ansible-playbook -i inventory/hosts.ini oracle_standalone_db.yml --check --diff
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Phase 1: OS pre-requisites (kernel params, oracle user, packages)
+# ---------------------------------------------------------------------------
+- name: Common OS configuration for standalone DB node
+  hosts: standalone_db
+  gather_facts: true
+  become: true
+  roles:
+    - role: common
+      tags: [common, pre_install]
+
+# ---------------------------------------------------------------------------
+# Phase 2: Oracle DB 19c pre-install
+# (OL9 repos, OL9 compat symlinks, directory setup, software extraction)
+# ---------------------------------------------------------------------------
+- name: Oracle DB 19c pre-install
+  hosts: standalone_db
+  gather_facts: false
+  become: true
+  tags: [standalone_pre_install, pre_install]
+  tasks:
+    - import_role:
+        name: oracle_standalone_db
+        tasks_from: pre_install
+
+# ---------------------------------------------------------------------------
+# Phase 3: Oracle DB 19c software-only install
+# ---------------------------------------------------------------------------
+- name: Install Oracle Database 19c software
+  hosts: standalone_db
+  gather_facts: false
+  become: true
+  tags: [standalone_db_install, db_install]
+  tasks:
+    - import_role:
+        name: oracle_standalone_db
+        tasks_from: db_install
+
+# ---------------------------------------------------------------------------
+# Phase 4: Oracle Net listener (must be running before DBCA)
+# ---------------------------------------------------------------------------
+- name: Configure and start Oracle Net listener
+  hosts: standalone_db
+  gather_facts: false
+  become: true
+  tags: [standalone_listener, listener]
+  tasks:
+    - import_role:
+        name: oracle_standalone_db
+        tasks_from: listener
+
+# ---------------------------------------------------------------------------
+# Phase 5: Create standalone database via DBCA (silent)
+# ---------------------------------------------------------------------------
+- name: Create Oracle standalone database (DBCA)
+  hosts: standalone_db
+  gather_facts: false
+  become: true
+  tags: [standalone_dbca, dbca, db_create]
+  tasks:
+    - import_role:
+        name: oracle_standalone_db
+        tasks_from: dbca
