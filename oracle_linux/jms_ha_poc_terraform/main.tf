@@ -1,16 +1,21 @@
 # =============================================================================
-# JMS HA POC - Oracle RAC + WebLogic Cluster
+# JMS HA POC - Oracle RAC + WebLogic Cluster + Standalone DB
 # =============================================================================
 # Layout:
-#   rac-node1  192.168.29.120  Oracle DB RAC Node 1  8GB / 2vCPU / 60GB OS + ASM disks
-#   rac-node2  192.168.29.121  Oracle DB RAC Node 2  8GB / 2vCPU / 60GB OS + ASM disks
-#   wls-admin  192.168.29.122  WLS Admin Server       2GB / 1vCPU / 40GB OS
-#   wls-node1  192.168.29.123  WLS Managed Server 1   3GB / 2vCPU / 50GB OS
-#   wls-node2  192.168.29.124  WLS Managed Server 2   3GB / 2vCPU / 50GB OS
+#   rac-node1  192.168.29.120  Oracle DB RAC Node 1   8GB / 2vCPU / 60GB OS + ASM disks
+#   rac-node2  192.168.29.121  Oracle DB RAC Node 2   8GB / 2vCPU / 60GB OS + ASM disks
+#   wls-admin  192.168.29.122  WLS Admin Server        2GB / 1vCPU / 40GB OS
+#   wls-node1  192.168.29.123  WLS Managed Server 1    3GB / 2vCPU / 50GB OS
+#   wls-node2  192.168.29.124  WLS Managed Server 2    3GB / 2vCPU / 50GB OS
+#   db-node    192.168.29.125  Standalone Oracle DB    4GB / 2vCPU / 100GB OS
 #
 # NOTE: ASM DATA (40GB) and ASM FRA (20GB) are attached to both RAC nodes.
 #       For a real Oracle RAC setup, use a shared storage pool (NFS/iSCSI)
 #       as the storage target so both nodes access the same physical disks.
+#
+# NOTE: db-node uses filesystem storage (no ASM). The 100GB OS disk hosts
+#       Oracle home, /u01/oradata (JMSDB), and /u01/fra.
+#       JDBC URL: jdbc:oracle:thin:@//192.168.29.125:1521/JMSPDB
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -177,6 +182,71 @@ resource "proxmox_vm_qemu" "rac_node2" {
   }
 
   depends_on = [proxmox_vm_qemu.rac_node1]
+}
+
+# -----------------------------------------------------------------------------
+# Standalone DB Node (Oracle 19c single-instance – JMS HA POC)
+# Provisioned by: oracle_linux/ansible/oracle_standalone_db.yml
+# JDBC URL:       jdbc:oracle:thin:@//192.168.29.125:1521/JMSPDB
+# -----------------------------------------------------------------------------
+resource "proxmox_vm_qemu" "db_node" {
+  name        = "db-node"
+  target_node = var.target_node
+  clone       = var.oracle_db_template
+  full_clone  = true
+  tags        = "terraform;jms-ha-poc;standalone-db"
+  vm_state    = "running"
+
+  cpu {
+    cores   = 2
+    sockets = 1
+    type    = "host"
+  }
+
+  agent  = 1
+  memory = 4096
+  scsihw = "virtio-scsi-single"
+
+  # --- CLOUD-INIT ---
+  os_type    = "cloud-init"
+  ciuser     = "prasad"
+  cipassword = "$6$RCgEI/BqaRcYexG6$23e3jxp8rWlCLohpW76PU087lv5QdHaQeOfkRz4gM59IZV7LjkPnBByjSNkp2LOdkYJpZFISllArj0nkNY3z41"
+  nameserver = "8.8.8.8"
+  ipconfig0  = "ip=192.168.29.125/24,gw=192.168.29.1"
+
+  sshkeys = <<EOF
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  EOF
+
+  network {
+    id     = 0
+    model  = "virtio"
+    bridge = "vmbr0"
+  }
+
+  boot = "order=scsi0"
+
+  disks {
+    scsi {
+      # Single OS disk – sized to hold Oracle home (/u01/app), oradata
+      # (/u01/oradata), and FRA (/u01/fra) on the root filesystem.
+      # No ASM disks: standalone DB uses filesystem storage.
+      # The common role's growpart task expands root to fill the full disk.
+      scsi0 {
+        disk {
+          size    = "100G"
+          storage = "local-lvm"
+        }
+      }
+    }
+    ide {
+      ide2 {
+        cloudinit {
+          storage = "local-lvm"
+        }
+      }
+    }
+  }
 }
 
 # -----------------------------------------------------------------------------
