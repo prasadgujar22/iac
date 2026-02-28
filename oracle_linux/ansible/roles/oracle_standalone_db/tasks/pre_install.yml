@@ -148,6 +148,8 @@
 - name: Verify Oracle DB zip exists on control node
   delegate_to: localhost
   become: false
+  vars:
+    ansible_become: false   # play-level become:true leaks into delegate_to:localhost
   stat:
     path: "{{ local_installer_src }}/{{ oracle_db_zip }}"
   register: db_zip_stat
