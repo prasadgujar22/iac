@@ -111,6 +111,7 @@
   dnf:
     name:
       - oracle-database-preinstall-19c
+      - acl
       - ksh
       - bc
       - binutils
