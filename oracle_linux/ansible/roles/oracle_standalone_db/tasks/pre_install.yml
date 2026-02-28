@@ -80,13 +80,25 @@
   register: libnsl_symlinks
   changed_when: "'changed' in libnsl_symlinks.stdout"
 
-# The common role writes ORACLE_SID={{ oracle_db_name }}1 (RAC instance suffix).
-# For a single-instance DB the SID has no instance number.
-- name: Fix oracle user bash_profile ORACLE_SID for single-instance DB
-  lineinfile:
-    path: /home/{{ oracle_user }}/.bash_profile
-    regexp: '^export ORACLE_SID='
-    line: "export ORACLE_SID={{ oracle_db_name }}"
+# Write the oracle user bash_profile directly here rather than relying on the
+# common role, which guards the task with `when: oracle_home is defined` and
+# may skip it if oracle_home is not resolved during common-role execution.
+# ORACLE_SID has no instance-number suffix (standalone, not RAC).
+- name: Write oracle user bash_profile for standalone DB
+  copy:
+    dest: /home/{{ oracle_user }}/.bash_profile
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0644'
+    content: |
+      # Oracle env
+      export ORACLE_BASE={{ oracle_base }}
+      export ORACLE_HOME={{ oracle_home }}
+      export ORACLE_SID={{ oracle_db_name }}
+      export NLS_DATE_FORMAT="DD-MON-YYYY HH24:MI:SS"
+      export PATH=$ORACLE_HOME/bin:$PATH:$HOME/.local/bin:$HOME/bin
+      export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
+      export CLASSPATH=$ORACLE_HOME/jlib:$ORACLE_HOME/rdbms/jlib
 
 # --- Oracle home and data directories ---
 - name: Create Oracle DB home directory
