@@ -176,6 +176,15 @@
     mode: '0644'
   when: not db_home_stat.stat.exists
 
+- name: Ensure Oracle DB home directory exists before extraction
+  file:
+    path: "{{ oracle_home }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0775'
+  when: not db_home_stat.stat.exists
+
 - name: Unzip Oracle DB installer to DB home
   unarchive:
     src: "{{ installer_stage }}/{{ oracle_db_zip }}"
