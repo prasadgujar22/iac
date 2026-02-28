@@ -48,7 +48,7 @@ resource "proxmox_vm_qemu" "rac_node1" {
   ipconfig1  = "ip=10.0.0.120/24"
 
   sshkeys = <<EOF
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com
   EOF
 
   network {
@@ -129,7 +129,7 @@ resource "proxmox_vm_qemu" "rac_node2" {
   ipconfig1  = "ip=10.0.0.121/24"
 
   sshkeys = <<EOF
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com
   EOF
 
   network {
@@ -215,7 +215,7 @@ resource "proxmox_vm_qemu" "db_node" {
   ipconfig0  = "ip=192.168.29.125/24,gw=192.168.29.1"
 
   sshkeys = <<EOF
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com
   EOF
 
   network {
@@ -278,7 +278,7 @@ resource "proxmox_vm_qemu" "wls_admin" {
   ipconfig0  = "ip=192.168.29.122/24,gw=192.168.29.1"
 
   sshkeys = <<EOF
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com
   EOF
 
   network {
@@ -337,7 +337,7 @@ resource "proxmox_vm_qemu" "wls_node1" {
   ipconfig0  = "ip=192.168.29.123/24,gw=192.168.29.1"
 
   sshkeys = <<EOF
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com
   EOF
 
   network {
@@ -396,7 +396,7 @@ resource "proxmox_vm_qemu" "wls_node2" {
   ipconfig0  = "ip=192.168.29.124/24,gw=192.168.29.1"
 
   sshkeys = <<EOF
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com
   EOF
 
   network {

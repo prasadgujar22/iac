@@ -40,7 +40,7 @@ resource "proxmox_vm_qemu" "oracle_nodes" {
 
   # Inject your public SSH key for passwordless login
   sshkeys = <<EOF
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com
   EOF
 
   # Force the VM to boot from the SCSI 0 drive (your main OS disk)
@@ -108,7 +108,7 @@ resource "proxmox_vm_qemu" "master_node" {
 
   # Inject your public SSH key for passwordless login
   sshkeys = <<EOF
-  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDR8bebUAw7YlTkeorcHNbG2feJtJ9N62AF77rX2CXax prasadgujar22
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com
   EOF
 
   # Force the VM to boot from the SCSI 0 drive (your main OS disk)
