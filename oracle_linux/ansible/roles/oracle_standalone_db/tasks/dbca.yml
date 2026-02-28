@@ -1,0 +1,153 @@
+---
+# =============================================================================
+# oracle_standalone_db/tasks/dbca.yml
+# Create Oracle 19c standalone CDB (JMSDB) with one PDB (JMSPDB) via DBCA.
+# Listener must be running before this task file executes.
+# =============================================================================
+
+- name: Generate DBCA response file
+  template:
+    src: dbca_response.j2
+    dest: "{{ installer_stage }}/dbca.rsp"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: '0640'
+
+# ─── Idempotency: skip DBCA if the database already appears in /etc/oratab ───
+- name: Check if database already exists in oratab
+  shell: grep -c "^{{ oracle_db_name }}:" /etc/oratab || true
+  register: oratab_check
+  changed_when: false
+  failed_when: false
+
+- name: Create Oracle standalone database using DBCA (silent)
+  become_user: "{{ oracle_user }}"
+  command: >
+    {{ oracle_home }}/bin/dbca
+    -silent
+    -createDatabase
+    -responseFile {{ installer_stage }}/dbca.rsp
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+    ORACLE_BASE: "{{ oracle_base }}"
+  register: dbca_result
+  failed_when: >
+    dbca_result.rc != 0 and
+    'Database creation complete' not in dbca_result.stdout
+  changed_when: >
+    'Database creation complete' in dbca_result.stdout
+  when: oratab_check.stdout | int == 0
+  async: 7200
+  poll: 60
+
+- name: Show DBCA output
+  debug:
+    var: dbca_result.stdout_lines
+  when: oratab_check.stdout | int == 0 and dbca_result is defined
+
+# ─── Archivelog mode (required for DataGuard / backup readiness) ─────────────
+# Bounce is disruptive; skip the whole block if already in ARCHIVELOG mode.
+- name: Check if archive log mode is already enabled
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    export ORACLE_SID={{ oracle_db_name }}
+    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
+    SET PAGESIZE 0 FEEDBACK OFF HEADING OFF TRIMSPOOL ON
+    SELECT LOG_MODE FROM V$DATABASE;
+    EXIT;
+    EOF
+  register: archivelog_mode_check
+  changed_when: false
+  failed_when: false
+
+- name: Enable archive log mode
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    export ORACLE_SID={{ oracle_db_name }}
+    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
+    SHUTDOWN IMMEDIATE;
+    STARTUP MOUNT;
+    ALTER DATABASE ARCHIVELOG;
+    ALTER DATABASE OPEN;
+    ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} OPEN;
+    ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} SAVE STATE;
+    EXIT;
+    EOF
+  register: archivelog_result
+  changed_when: "'Database altered' in archivelog_result.stdout"
+  when: "'ARCHIVELOG' not in archivelog_mode_check.stdout"
+
+# Force LREG to register DB services with the listener immediately rather than
+# waiting up to 60 s for the background registration cycle.
+- name: Register database services with listener
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    export ORACLE_SID={{ oracle_db_name }}
+    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
+    ALTER SYSTEM REGISTER;
+    EXIT;
+    EOF
+  changed_when: false
+
+# ─── Auto-start on reboot via systemd ────────────────────────────────────────
+# oratab Y flag is required by dbstart / dbshut scripts.
+- name: Ensure oratab Y flag is set for JMSDB
+  lineinfile:
+    path: /etc/oratab
+    regexp: '^{{ oracle_db_name }}:{{ oracle_home }}:'
+    line: "{{ oracle_db_name }}:{{ oracle_home }}:Y"
+
+- name: Deploy Oracle DB systemd service
+  copy:
+    dest: /etc/systemd/system/oracle-db.service
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Oracle Database 19c – {{ oracle_db_name }}
+      After=network.target oracle-listener.service
+      Wants=oracle-listener.service
+
+      [Service]
+      Type=forking
+      User={{ oracle_user }}
+      Environment=ORACLE_HOME={{ oracle_home }}
+      Environment=ORACLE_BASE={{ oracle_base }}
+      Environment=ORACLE_SID={{ oracle_db_name }}
+      ExecStart={{ oracle_home }}/bin/dbstart {{ oracle_home }}
+      ExecStop={{ oracle_home }}/bin/dbshut {{ oracle_home }}
+      RemainAfterExit=yes
+      TimeoutStartSec=600
+      TimeoutStopSec=300
+
+      [Install]
+      WantedBy=multi-user.target
+  register: db_service_file
+
+- name: Enable Oracle DB systemd service
+  systemd:
+    name: oracle-db
+    daemon_reload: "{{ db_service_file.changed }}"
+    enabled: true
+
+# ─── Verification ─────────────────────────────────────────────────────────────
+- name: Verify database is open
+  become_user: "{{ oracle_user }}"
+  shell: |
+    export ORACLE_HOME={{ oracle_home }}
+    export ORACLE_SID={{ oracle_db_name }}
+    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
+    SET PAGESIZE 20 FEEDBACK OFF HEADING ON TRIMSPOOL ON
+    SELECT status FROM v$instance;
+    SELECT open_mode FROM v$database;
+    SELECT name, open_mode FROM v$pdbs;
+    EXIT;
+    EOF
+  register: db_status
+  changed_when: false
+
+- name: Show database status
+  debug:
+    var: db_status.stdout_lines

@@ -92,6 +92,8 @@
       192.168.29.122  wls-admin.lab.local  wls-admin
       192.168.29.123  wls-node1.lab.local  wls-node1
       192.168.29.124  wls-node2.lab.local  wls-node2
+      # --- Standalone DB ---
+      192.168.29.125  db-node.lab.local  db-node
 
 - name: Disable firewalld
   service:
