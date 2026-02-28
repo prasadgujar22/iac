@@ -186,10 +186,10 @@
   when: not db_home_stat.stat.exists
 
 - name: Unzip Oracle DB installer to DB home
-  unarchive:
-    src: "{{ installer_stage }}/{{ oracle_db_zip }}"
-    dest: "{{ oracle_home }}"
-    remote_src: true
+  shell: >-
+    unzip -oq "{{ installer_stage }}/{{ oracle_db_zip }}"
+    -d "{{ oracle_home }}"
+  args:
     creates: "{{ oracle_home }}/runInstaller"
   when: not db_home_stat.stat.exists
 
