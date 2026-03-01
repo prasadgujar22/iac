@@ -38,8 +38,11 @@
     'Successfully Setup Software' not in db_install_result.stdout
   changed_when: >
     'Successfully Setup Software' in db_install_result.stdout
-  async: 3600
-  poll: 30
+  # async/poll intentionally omitted: the OL installer spawns sub-processes
+  # (SSH cloning to cluster nodes, orainstRoot.sh, etc.) that prevent the
+  # Ansible async-status file from being written, producing "could not find
+  # job".  The SSH keepalive (ServerAliveInterval=60 in ansible.cfg) keeps
+  # the connection alive for the ~15-20 min synchronous run instead.
 
 - name: Show DB installer output
   debug:
