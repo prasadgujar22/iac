@@ -224,3 +224,31 @@
     path: "{{ installer_stage }}/{{ oracle_db_zip }}"
     state: absent
   when: not db_home_stat.stat.exists
+
+# Oracle 19.3's ins_rdbms.mk builds binaries (e.g. orion) using only sysliblist
+# for system library resolution.  sysliblist ships without -lc, so static
+# archives that reference libc symbols — specifically stat() in libnnzst19.a
+# (Oracle Crypto Toolkit) — produce "undefined reference to stat" on OL9.
+# orald (Oracle's linker wrapper) does not pull in libc implicitly the way
+# gcc/cc does, leaving stat unresolved.
+#
+# Fix: append -lc to sysliblist.  Every Oracle Makefile target uses
+# "$(shell cat sysliblist)" in its link command, so this resolves stat (and
+# any other plain-libc symbols) for all Oracle binaries in one edit.
+- name: Add -lc to Oracle sysliblist (fixes undefined reference to stat on OL9)
+  shell: |
+    sysliblist="{{ oracle_home }}/lib/sysliblist"
+    if [ ! -f "$sysliblist" ]; then
+      echo "ok (file not present)"
+      exit 0
+    fi
+    if grep -qw -- '-lc' "$sysliblist"; then
+      echo "ok"
+      exit 0
+    fi
+    echo " -lc" >> "$sysliblist"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  register: _sysliblist_result
+  changed_when: "'changed' in _sysliblist_result.stdout"
