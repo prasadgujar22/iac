@@ -263,6 +263,28 @@
 # inject the resulting object into libnnzst19.a.  GNU ld's archive symbol-index
 # will find stat_compat.o from within the same archive after ccme_ck_rand_-
 # load_fileS1.o creates the undefined reference — no external resolution needed.
+#
+# The C source is written via the copy module (not a shell heredoc) because
+# YAML block scalars require content to be indented, but shell heredoc bodies
+# must start at column 1 — the two requirements are mutually exclusive.
+- name: Write stat_compat.c for Oracle libnnzst19.a injection
+  copy:
+    dest: /tmp/_oracle_stat_compat.c
+    mode: '0644'
+    content: |
+      #define _GNU_SOURCE
+      #include <sys/types.h>
+      #include <sys/stat.h>
+      #include <unistd.h>
+      #include <sys/syscall.h>
+      #include <fcntl.h>
+      /* stat() via direct kernel syscall (SYS_newfstatat / AT_FDCWD).
+       * Satisfies the undefined reference to stat in Oracle 19.3 libnnzst19.a
+       * on OL9/RHEL9 where orald does not implicitly pull in libc. */
+      int stat(const char *restrict path, struct stat *restrict buf) {
+          return (int)syscall(SYS_newfstatat, AT_FDCWD, path, buf, 0);
+      }
+
 - name: Inject stat() syscall wrapper into libnnzst19.a (OL9 orald fix)
   shell: |
     set -e
@@ -275,26 +297,9 @@
       echo "ok"
       exit 0
     fi
-    tmpdir=$(mktemp -d)
-    cat > "${tmpdir}/stat_compat.c" << 'CEOF'
-#define _GNU_SOURCE
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <fcntl.h>
-/*
- * stat() via direct kernel syscall (SYS_newfstatat with AT_FDCWD).
- * Satisfies the undefined reference to stat in Oracle 19.3 libnnzst19.a
- * on OL9/RHEL9 where orald does not implicitly pull in libc.
- */
-int stat(const char *restrict path, struct stat *restrict buf) {
-    return (int)syscall(SYS_newfstatat, AT_FDCWD, path, buf, 0);
-}
-CEOF
-    gcc -O0 -fPIC -c -o "${tmpdir}/stat_compat.o" "${tmpdir}/stat_compat.c"
-    ar rcs "$archive" "${tmpdir}/stat_compat.o"
-    rm -rf "$tmpdir"
+    gcc -O0 -fPIC -c -o /tmp/_oracle_stat_compat.o /tmp/_oracle_stat_compat.c
+    ar rcs "$archive" /tmp/_oracle_stat_compat.o
+    rm -f /tmp/_oracle_stat_compat.o /tmp/_oracle_stat_compat.c
     echo "changed"
   args:
     executable: /bin/bash
