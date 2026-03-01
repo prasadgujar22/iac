@@ -22,20 +22,26 @@
     mode: '0640'
   notify: restart listener
 
+# runuser is used instead of become_user to bypass the broken sudo/sudoers_audit
+# PAM path (see db_install.yml for the full explanation).
 - name: Check if listener is already running
-  become_user: "{{ oracle_user }}"
   shell: |
-    export ORACLE_HOME={{ oracle_home }}
-    {{ oracle_home }}/bin/lsnrctl status {{ listener_name }}
+    ORACLE_HOME={{ oracle_home }} \
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/bin/lsnrctl status {{ listener_name }}
+  args:
+    executable: /bin/bash
   register: lsnrctl_status
   changed_when: false
   failed_when: false
 
 - name: Start Oracle Net listener
-  become_user: "{{ oracle_user }}"
   shell: |
-    export ORACLE_HOME={{ oracle_home }}
-    {{ oracle_home }}/bin/lsnrctl start {{ listener_name }}
+    ORACLE_HOME={{ oracle_home }} \
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/bin/lsnrctl start {{ listener_name }}
+  args:
+    executable: /bin/bash
   register: lsnrctl_start
   changed_when: lsnrctl_start.rc == 0
   failed_when: >

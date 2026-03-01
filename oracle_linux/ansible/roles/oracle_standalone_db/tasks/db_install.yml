@@ -14,14 +14,22 @@
 
 # CV_ASSUME_DISTID suppresses the OL9 / RHEL9 distro-unrecognised warning that
 # would otherwise abort the prerequisite check phase on OL9 with 19.3 binaries.
+#
+# runuser is used instead of become_user / sudo because the sudoers_audit PAM
+# plugin fails to initialise when auditd is not running (common in VMs and
+# containers), causing every "sudo -u oracle" call to exit with rc=1 and
+# "sudo: unknown user: oracle".  runuser(1) performs a direct setresuid()
+# kernel call with no PAM / sudoers involvement and always works from root.
 - name: Run Oracle DB installer (silent, software only)
-  become_user: "{{ oracle_user }}"
-  command: >
-    {{ oracle_home }}/runInstaller
-    -silent
-    -responseFile {{ installer_stage }}/db_install.rsp
-    -ignorePrereqFailure
-    -skipPrereqs
+  shell: |
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/runInstaller \
+      -silent \
+      -responseFile {{ installer_stage }}/db_install.rsp \
+      -ignorePrereqFailure \
+      -skipPrereqs
+  args:
+    executable: /bin/bash
   environment:
     CV_ASSUME_DISTID: OEL7.6
   register: db_install_result

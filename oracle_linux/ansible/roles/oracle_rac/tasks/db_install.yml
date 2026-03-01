@@ -14,14 +14,18 @@
     mode: '0640'
   when: inventory_hostname == oracle_node1_hostname
 
+# runuser is used instead of become_user to bypass the broken sudo/sudoers_audit
+# PAM path (see standalone db_install.yml for the full explanation).
 - name: Run Oracle DB installer (silent, software only) – node1 only
-  become_user: "{{ oracle_user }}"
-  command: >
-    {{ oracle_home }}/runInstaller
-    -silent
-    -responseFile {{ installer_stage }}/db_install.rsp
-    -ignorePrereqFailure
-    -skipPrereqs
+  shell: |
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/runInstaller \
+      -silent \
+      -responseFile {{ installer_stage }}/db_install.rsp \
+      -ignorePrereqFailure \
+      -skipPrereqs
+  args:
+    executable: /bin/bash
   environment:
     CV_ASSUME_DISTID: OEL7.6
   register: db_install_result
@@ -68,11 +72,12 @@
     - not db_home_rootsh_stat.stat.exists
 
 - name: Extract Oracle DB zip on this node (fallback – replaces failed installer SSH cloning)
-  become_user: "{{ oracle_user }}"
-  unarchive:
-    src: "{{ installer_stage }}/{{ oracle_db_zip }}"
-    dest: "{{ oracle_home }}"
-    remote_src: true
+  shell: |
+    runuser -u {{ oracle_user }} -- \
+      unzip -oq {{ installer_stage }}/{{ oracle_db_zip }} \
+      -d {{ oracle_home }}
+  args:
+    executable: /bin/bash
     creates: "{{ oracle_home }}/root.sh"
   when:
     - inventory_hostname != oracle_node1_hostname
