@@ -35,8 +35,8 @@
   changed_when: >
     'Successfully Setup Software' in db_install_result.stdout
   when: inventory_hostname == oracle_node1_hostname
-  async: 3600
-  poll: 30
+  # async/poll intentionally omitted — same reason as oracle_standalone_db:
+  # installer spawns SSH-cloning sub-processes, breaking the async results file.
 
 - name: Show DB installer output
   debug:

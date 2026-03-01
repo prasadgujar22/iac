@@ -55,8 +55,6 @@
     'Database creation complete' in dbca_result.stdout or
     '100% complete' in dbca_result.stdout
   when: oratab_check.stdout | int == 0
-  async: 7200
-  poll: 60
 
 # Show output unconditionally (no when-guard) so that a silent DBCA failure
 # is immediately visible in the play output without having to hunt log files.
