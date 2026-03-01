@@ -279,29 +279,47 @@
       #include <unistd.h>
       #include <sys/syscall.h>
       #include <fcntl.h>
-      /* stat() via direct kernel syscall (SYS_newfstatat / AT_FDCWD).
-       * Satisfies the undefined reference to stat in Oracle 19.3 libnnzst19.a
-       * on OL9/RHEL9 where orald does not implicitly pull in libc. */
+      /*
+       * stat-family wrappers via direct kernel syscalls.
+       * Satisfies undefined references to stat/fstat/lstat in Oracle 19.3
+       * static archives on OL9/RHEL9 where orald does not implicitly link
+       * libc, leaving these glibc symbols unresolved.
+       *
+       * Affected archives confirmed so far (Oracle 19.3 on OL9):
+       *   libnnzst19.a  – stat   (ccme_ck_rand_load_fileS1.o)
+       *   libjavavm19.a – fstat  (eobtl.o)
+       * Lstat included pre-emptively; the wrapper is injected into every
+       * .a file that has any of these as undefined symbols.
+       */
       int stat(const char *restrict path, struct stat *restrict buf) {
           return (int)syscall(SYS_newfstatat, AT_FDCWD, path, buf, 0);
+      }
+      int fstat(int fd, struct stat *restrict buf) {
+          return (int)syscall(SYS_fstat, fd, buf);
+      }
+      int lstat(const char *restrict path, struct stat *restrict buf) {
+          return (int)syscall(SYS_newfstatat, AT_FDCWD, path, buf,
+                              AT_SYMLINK_NOFOLLOW);
       }
 
 - name: Inject stat() syscall wrapper into libnnzst19.a (OL9 orald fix)
   shell: |
     set -e
-    archive="{{ oracle_home }}/lib/libnnzst19.a"
-    if [ ! -f "$archive" ]; then
-      echo "ok (archive absent)"
-      exit 0
-    fi
-    if ar t "$archive" | grep -q '^stat_compat\.o$'; then
-      echo "ok"
-      exit 0
-    fi
     gcc -O0 -fPIC -c -o /tmp/_oracle_stat_compat.o /tmp/_oracle_stat_compat.c
-    ar rcs "$archive" /tmp/_oracle_stat_compat.o
-    rm -f /tmp/_oracle_stat_compat.o /tmp/_oracle_stat_compat.c
-    echo "changed"
+    changed=0
+    for archive in \
+        "{{ oracle_home }}/lib/"*.a \
+        "{{ oracle_home }}/rdbms/lib/"*.a; do
+      [ -f "$archive" ] || continue
+      ar t "$archive" 2>/dev/null | grep -q '^stat_compat\.o$' && continue
+      if nm -u "$archive" 2>/dev/null \
+            | grep -qE ' U (stat|fstat|lstat)$'; then
+        ar rcs "$archive" /tmp/_oracle_stat_compat.o
+        changed=1
+      fi
+    done
+    rm -f /tmp/_oracle_stat_compat.o
+    [ "$changed" -eq 1 ] && echo "changed" || echo "ok"
   args:
     executable: /bin/bash
   register: _stat_inject_result
