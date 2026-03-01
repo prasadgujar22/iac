@@ -20,13 +20,17 @@
   changed_when: false
   failed_when: false
 
+# runuser is used instead of become_user to bypass the broken sudo/sudoers_audit
+# PAM path (see db_install.yml for the full explanation).
 - name: Create Oracle standalone database using DBCA (silent)
-  become_user: "{{ oracle_user }}"
-  command: >
-    {{ oracle_home }}/bin/dbca
-    -silent
-    -createDatabase
-    -responseFile {{ installer_stage }}/dbca.rsp
+  shell: |
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/bin/dbca \
+      -silent \
+      -createDatabase \
+      -responseFile {{ installer_stage }}/dbca.rsp
+  args:
+    executable: /bin/bash
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
     ORACLE_BASE: "{{ oracle_base }}"
@@ -48,33 +52,35 @@
 # ─── Archivelog mode (required for DataGuard / backup readiness) ─────────────
 # Bounce is disruptive; skip the whole block if already in ARCHIVELOG mode.
 - name: Check if archive log mode is already enabled
-  become_user: "{{ oracle_user }}"
   shell: |
-    export ORACLE_HOME={{ oracle_home }}
-    export ORACLE_SID={{ oracle_db_name }}
-    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
-    SET PAGESIZE 0 FEEDBACK OFF HEADING OFF TRIMSPOOL ON
-    SELECT LOG_MODE FROM V$DATABASE;
-    EXIT;
-    EOF
+    printf '%s\n' \
+      'SET PAGESIZE 0 FEEDBACK OFF HEADING OFF TRIMSPOOL ON' \
+      'SELECT LOG_MODE FROM V$DATABASE;' \
+      'EXIT;' | \
+    ORACLE_HOME={{ oracle_home }} ORACLE_SID={{ oracle_db_name }} \
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/bin/sqlplus -S / as sysdba
+  args:
+    executable: /bin/bash
   register: archivelog_mode_check
   changed_when: false
   failed_when: false
 
 - name: Enable archive log mode
-  become_user: "{{ oracle_user }}"
   shell: |
-    export ORACLE_HOME={{ oracle_home }}
-    export ORACLE_SID={{ oracle_db_name }}
-    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
-    SHUTDOWN IMMEDIATE;
-    STARTUP MOUNT;
-    ALTER DATABASE ARCHIVELOG;
-    ALTER DATABASE OPEN;
-    ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} OPEN;
-    ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} SAVE STATE;
-    EXIT;
-    EOF
+    printf '%s\n' \
+      'SHUTDOWN IMMEDIATE;' \
+      'STARTUP MOUNT;' \
+      'ALTER DATABASE ARCHIVELOG;' \
+      'ALTER DATABASE OPEN;' \
+      'ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} OPEN;' \
+      'ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} SAVE STATE;' \
+      'EXIT;' | \
+    ORACLE_HOME={{ oracle_home }} ORACLE_SID={{ oracle_db_name }} \
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/bin/sqlplus -S / as sysdba
+  args:
+    executable: /bin/bash
   register: archivelog_result
   changed_when: "'Database altered' in archivelog_result.stdout"
   when: "'ARCHIVELOG' not in archivelog_mode_check.stdout"
@@ -82,14 +88,15 @@
 # Force LREG to register DB services with the listener immediately rather than
 # waiting up to 60 s for the background registration cycle.
 - name: Register database services with listener
-  become_user: "{{ oracle_user }}"
   shell: |
-    export ORACLE_HOME={{ oracle_home }}
-    export ORACLE_SID={{ oracle_db_name }}
-    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
-    ALTER SYSTEM REGISTER;
-    EXIT;
-    EOF
+    printf '%s\n' \
+      'ALTER SYSTEM REGISTER;' \
+      'EXIT;' | \
+    ORACLE_HOME={{ oracle_home }} ORACLE_SID={{ oracle_db_name }} \
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/bin/sqlplus -S / as sysdba
+  args:
+    executable: /bin/bash
   changed_when: false
 
 # ─── Auto-start on reboot via systemd ────────────────────────────────────────
@@ -134,17 +141,18 @@
 
 # ─── Verification ─────────────────────────────────────────────────────────────
 - name: Verify database is open
-  become_user: "{{ oracle_user }}"
   shell: |
-    export ORACLE_HOME={{ oracle_home }}
-    export ORACLE_SID={{ oracle_db_name }}
-    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'EOF'
-    SET PAGESIZE 20 FEEDBACK OFF HEADING ON TRIMSPOOL ON
-    SELECT status FROM v$instance;
-    SELECT open_mode FROM v$database;
-    SELECT name, open_mode FROM v$pdbs;
-    EXIT;
-    EOF
+    printf '%s\n' \
+      'SET PAGESIZE 20 FEEDBACK OFF HEADING ON TRIMSPOOL ON' \
+      'SELECT status FROM v$instance;' \
+      'SELECT open_mode FROM v$database;' \
+      'SELECT name, open_mode FROM v$pdbs;' \
+      'EXIT;' | \
+    ORACLE_HOME={{ oracle_home }} ORACLE_SID={{ oracle_db_name }} \
+    runuser -u {{ oracle_user }} -- \
+      {{ oracle_home }}/bin/sqlplus -S / as sysdba
+  args:
+    executable: /bin/bash
   register: db_status
   changed_when: false
 
