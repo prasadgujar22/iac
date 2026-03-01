@@ -22,6 +22,15 @@
 
 # runuser is used instead of become_user to bypass the broken sudo/sudoers_audit
 # PAM path (see db_install.yml for the full explanation).
+#
+# PATH and LD_LIBRARY_PATH must be set explicitly: runuser non-login mode
+# inherits the calling shell's PATH (no $ORACLE_HOME/bin), so DBCA cannot
+# find oracle-internal binaries it spawns (orapwd, sqlplus, etc.).
+#
+# failed_when is strict: DBCA sometimes exits 0 even on failure (e.g. when
+# prerequisites silently pass but creation never completes).  Require the
+# success string in stdout so a silent rc=0 failure is caught and the real
+# DBCA log output is shown to the operator.
 - name: Create Oracle standalone database using DBCA (silent)
   shell: |
     runuser -u {{ oracle_user }} -- \
@@ -34,20 +43,31 @@
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
     ORACLE_BASE: "{{ oracle_base }}"
+    PATH: "{{ oracle_home }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
+    HOME: "/home/{{ oracle_user }}"
   register: dbca_result
   failed_when: >
-    dbca_result.rc != 0 and
-    'Database creation complete' not in dbca_result.stdout
+    dbca_result.rc not in [0] or
+    ('Database creation complete' not in dbca_result.stdout and
+     '100% complete' not in dbca_result.stdout)
   changed_when: >
-    'Database creation complete' in dbca_result.stdout
+    'Database creation complete' in dbca_result.stdout or
+    '100% complete' in dbca_result.stdout
   when: oratab_check.stdout | int == 0
   async: 7200
   poll: 60
 
+# Show output unconditionally (no when-guard) so that a silent DBCA failure
+# is immediately visible in the play output without having to hunt log files.
 - name: Show DBCA output
   debug:
-    var: dbca_result.stdout_lines
-  when: oratab_check.stdout | int == 0 and dbca_result is defined
+    msg: |
+      STDOUT:
+      {{ dbca_result.stdout | default('(none)') }}
+      STDERR:
+      {{ dbca_result.stderr | default('(none)') }}
+  when: dbca_result is defined
 
 # ─── Archivelog mode (required for DataGuard / backup readiness) ─────────────
 # Bounce is disruptive; skip the whole block if already in ARCHIVELOG mode.
@@ -101,11 +121,19 @@
 
 # ─── Auto-start on reboot via systemd ────────────────────────────────────────
 # oratab Y flag is required by dbstart / dbshut scripts.
+# /etc/oratab is created by DBCA during database creation; it does NOT exist
+# before the first successful DBCA run.  create: true prevents a fatal failure
+# on re-runs where DBCA is skipped (DB already in oratab) but the file's Y
+# flag needs updating (e.g. was manually set to N).
 - name: Ensure oratab Y flag is set for JMSDB
   lineinfile:
     path: /etc/oratab
     regexp: '^{{ oracle_db_name }}:{{ oracle_home }}:'
     line: "{{ oracle_db_name }}:{{ oracle_home }}:Y"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
 
 - name: Deploy Oracle DB systemd service
   copy:
