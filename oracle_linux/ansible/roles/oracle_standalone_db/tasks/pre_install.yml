@@ -55,6 +55,7 @@
     name:
       - libnsl2
       - compat-openssl11
+      - gcc
     state: present
 
 # On OL9 (glibc 2.34+) libpthread was merged into libc; both
