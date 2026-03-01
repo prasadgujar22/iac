@@ -136,7 +136,7 @@
 - name: Enable Oracle DB systemd service
   systemd:
     name: oracle-db
-    daemon_reload: "{{ db_service_file.changed }}"
+    daemon_reload: true
     enabled: true
 
 # ─── Verification ─────────────────────────────────────────────────────────────
