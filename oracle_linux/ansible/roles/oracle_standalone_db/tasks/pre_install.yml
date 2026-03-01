@@ -25,19 +25,36 @@
     gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
     enabled: yes
 
+# AppStream provides compat-openssl11 which Oracle 19.3 needs at link time.
+# Oracle 19.3 was compiled against OpenSSL 1.1.x; OL9 ships only OpenSSL 3.0.
+- name: Configure Oracle Linux 9 AppStream repository
+  yum_repository:
+    name: ol9_appstream
+    description: "Oracle Linux 9 AppStream (x86_64)"
+    baseurl: "https://yum.oracle.com/repo/OracleLinux/OL9/appstream/x86_64/"
+    gpgcheck: yes
+    gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
+    enabled: yes
+
 - name: Install Oracle 19c prerequisite packages
   dnf:
     name:
       - oracle-database-preinstall-19c
     state: present
 
-# Oracle 19c (19.3) on OL9 requires libnsl2 (libnsl was removed from glibc in
-# OL9).  The libnsl.so / libnsl.so.1 compat symlinks below handle the linker
-# search path so Oracle's ins_rdbms.mk can link with -lnsl at build time.
+# OL9 compatibility packages for Oracle 19.3 (base release, pre-RU):
+#   libnsl2        – replaces libnsl which was removed from glibc in OL9;
+#                    symlinks below expose it as libnsl.so.1 / libnsl.so
+#   libnsl2-devel  – provides the libnsl.so linker stub for -lnsl at link time
+#   compat-openssl11 – provides libssl.so.1.1 / libcrypto.so.1.1; Oracle 19.3
+#                      was compiled against OpenSSL 1.1.x and the ins_rdbms.mk
+#                      relink step fails with "cannot find -lssl" on OL9's 3.0
 - name: Install Oracle 19c / OL9 compatibility packages
   dnf:
     name:
       - libnsl2
+      - libnsl2-devel
+      - compat-openssl11
     state: present
 
 # On OL9 (glibc 2.34+) libpthread was merged into libc; both

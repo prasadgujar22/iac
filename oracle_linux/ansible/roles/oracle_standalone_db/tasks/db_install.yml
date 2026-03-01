@@ -20,29 +20,55 @@
 # containers), causing every "sudo -u oracle" call to exit with rc=1 and
 # "sudo: unknown user: oracle".  runuser(1) performs a direct setresuid()
 # kernel call with no PAM / sudoers involvement and always works from root.
-- name: Run Oracle DB installer (silent, software only)
-  shell: |
-    runuser -u {{ oracle_user }} -- \
-      {{ oracle_home }}/runInstaller \
-      -silent \
-      -responseFile {{ installer_stage }}/db_install.rsp \
-      -ignorePrereqFailure \
-      -skipPrereqs
-  args:
-    executable: /bin/bash
-  environment:
-    CV_ASSUME_DISTID: OEL7.6
-  register: db_install_result
-  failed_when: >
-    db_install_result.rc not in [0, 6] and
-    'Successfully Setup Software' not in db_install_result.stdout
-  changed_when: >
-    'Successfully Setup Software' in db_install_result.stdout
-  # async/poll intentionally omitted: the OL installer spawns sub-processes
-  # (SSH cloning to cluster nodes, orainstRoot.sh, etc.) that prevent the
-  # Ansible async-status file from being written, producing "could not find
-  # job".  The SSH keepalive (ServerAliveInterval=60 in ansible.cfg) keeps
-  # the connection alive for the ~15-20 min synchronous run instead.
+#
+# The rescue block surfaces the OUI installActions log so that make/linker
+# errors (e.g. ins_rdbms.mk all_no_orcl) are visible without manual SSH.
+- block:
+    - name: Run Oracle DB installer (silent, software only)
+      shell: |
+        runuser -u {{ oracle_user }} -- \
+          {{ oracle_home }}/runInstaller \
+          -silent \
+          -responseFile {{ installer_stage }}/db_install.rsp \
+          -ignorePrereqFailure \
+          -skipPrereqs
+      args:
+        executable: /bin/bash
+      environment:
+        CV_ASSUME_DISTID: OEL7.6
+      register: db_install_result
+      failed_when: >
+        db_install_result.rc not in [0, 6] and
+        'Successfully Setup Software' not in db_install_result.stdout
+      changed_when: >
+        'Successfully Setup Software' in db_install_result.stdout
+      # async/poll intentionally omitted — see module comments above.
+
+  rescue:
+    - name: Find most recent OUI installActions log
+      shell: >-
+        find {{ oracle_inventory }}/logs -name 'installActions*.log' -printf '%T@ %p\n'
+        2>/dev/null | sort -n | tail -1 | awk '{print $2}'
+      register: _install_log_path
+      failed_when: false
+      changed_when: false
+
+    - name: Show installer log tail (last 120 lines)
+      shell: tail -120 "{{ _install_log_path.stdout }}"
+      register: _install_log_tail
+      when: _install_log_path.stdout | length > 0
+      failed_when: false
+      changed_when: false
+
+    - name: Display installer log
+      debug:
+        msg: "{{ _install_log_tail.stdout_lines | default(['(log not found)']) }}"
+
+    - name: Re-raise installer failure
+      fail:
+        msg: >
+          Oracle DB installer failed (rc={{ db_install_result.rc }}).
+          Installer stdout: {{ db_install_result.stdout[-500:] }}
 
 - name: Show DB installer output
   debug:
