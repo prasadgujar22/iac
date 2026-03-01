@@ -74,8 +74,18 @@
       WantedBy=multi-user.target
   register: listener_service_file
 
-- name: Enable Oracle listener systemd service
+# Two-step enable that avoids Ansible's systemd module 'enabled: true' path.
+# That path calls 'systemctl is-enabled', which requires a D-Bus connection
+# that this OL9 VM does not provide reliably (returns ": host" error).
+# Instead: daemon-reload via the module (SIGTERM to PID 1, no D-Bus needed),
+# then create the WantedBy symlink directly — exactly what systemctl enable
+# does on disk.
+- name: Reload systemd daemon to register oracle-listener unit
   systemd:
-    name: oracle-listener
     daemon_reload: true
-    enabled: true
+
+- name: Enable oracle-listener service (create WantedBy symlink)
+  file:
+    src: /etc/systemd/system/oracle-listener.service
+    dest: /etc/systemd/system/multi-user.target.wants/oracle-listener.service
+    state: link

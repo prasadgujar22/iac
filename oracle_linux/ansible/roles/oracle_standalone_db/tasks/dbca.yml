@@ -133,11 +133,18 @@
       WantedBy=multi-user.target
   register: db_service_file
 
-- name: Enable Oracle DB systemd service
+# Same two-step pattern as oracle-listener: daemon-reload works (SIGTERM to
+# PID 1), but 'systemctl is-enabled' requires D-Bus which is unreliable on
+# this OL9 VM.  Create the WantedBy symlink directly instead.
+- name: Reload systemd daemon to register oracle-db unit
   systemd:
-    name: oracle-db
     daemon_reload: true
-    enabled: true
+
+- name: Enable oracle-db service (create WantedBy symlink)
+  file:
+    src: /etc/systemd/system/oracle-db.service
+    dest: /etc/systemd/system/multi-user.target.wants/oracle-db.service
+    state: link
 
 # ─── Verification ─────────────────────────────────────────────────────────────
 - name: Verify database is open
