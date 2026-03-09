@@ -38,11 +38,6 @@ automaticMemoryManagement=false
 totalMemory={{ oracle_memory_target_mb }}
 
 #--------------------------------------------------------------------
-# Listener registration port (listener must be running before DBCA)
-#--------------------------------------------------------------------
-listenerPort={{ listener_port }}
-
-#--------------------------------------------------------------------
 # Credentials
 #--------------------------------------------------------------------
 sysPassword={{ oracle_sys_password }}
@@ -50,7 +45,8 @@ systemPassword={{ oracle_system_password }}
 dbsnmpPassword={{ oracle_dbsnmp_password }}
 
 #--------------------------------------------------------------------
-# Options
+# Options (listenerPort removed – not valid in Oracle 19c response file
+# schema; DBCA auto-detects the running listener via listener.ora)
 #--------------------------------------------------------------------
 enableArchive=false
 runCVUChecks=false
