@@ -29,6 +29,7 @@ cd('/Cluster/{{ cluster_name }}')
 set('ClusterMessagingMode', 'unicast')
 
 # --- Create Managed Servers ---
+cd('/')
 {% for ms in managed_servers %}
 create('{{ ms.name }}', 'Server')
 cd('/Server/{{ ms.name }}')
