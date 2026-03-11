@@ -45,7 +45,6 @@
     - "{{ mw_home }}"
     - "{{ domain_home }}"
     - "{{ installer_stage }}"
-    - /u01/app/jdk17
 
 - name: Open WLS Admin Server port in firewalld
   ansible.posix.firewalld:

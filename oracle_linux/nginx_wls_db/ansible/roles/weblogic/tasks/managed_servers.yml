@@ -3,14 +3,6 @@
 # Distribute domain to Managed Server nodes and start Managed Servers
 # =============================================================================
 
-- name: Deploy pack/unpack script
-  ansible.builtin.template:
-    src: unpack_domain.sh.j2
-    dest: "{{ installer_stage }}/unpack_domain.sh"
-    owner: "{{ oracle_user }}"
-    group: "{{ oracle_group }}"
-    mode: "0750"
-
 - name: Pack domain on Admin Server (delegate)
   ansible.builtin.command: >
     {{ mw_home }}/oracle_common/common/bin/pack.sh
@@ -44,6 +36,11 @@
     group: "{{ oracle_group }}"
     mode: "0644"
 
+- name: Check if domain already unpacked on managed node
+  ansible.builtin.stat:
+    path: "{{ domain_home }}/config/config.xml"
+  register: managed_domain_exists
+
 - name: Unpack domain on managed node
   ansible.builtin.command: >
     {{ mw_home }}/oracle_common/common/bin/unpack.sh
@@ -57,23 +54,24 @@
     JAVA_HOME: "{{ jdk_home }}"
     MW_HOME:   "{{ mw_home }}"
   register: unpack_result
-  failed_when:
-    - unpack_result.rc != 0
-    - '"unpack.sh completed" not in unpack_result.stdout'
+  failed_when: >
+    unpack_result.rc != 0
+    or "unpack.sh completed" not in (unpack_result.stdout | default(''))
   changed_when: '"unpack.sh completed" in unpack_result.stdout'
+  when: not managed_domain_exists.stat.exists
 
 - name: Deploy Managed Server startup script
   ansible.builtin.template:
     src: start_managed_server.sh.j2
-    dest: "{{ domain_home }}/bin/startManagedServer_{{ inventory_hostname_short }}.sh"
+    dest: "{{ domain_home }}/bin/startManagedServer_{{ wls_server_name }}.sh"
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: "0750"
 
 - name: Start Managed Server
   ansible.builtin.shell: |
-    nohup {{ domain_home }}/bin/startManagedServer_{{ inventory_hostname_short }}.sh \
-      > {{ domain_home }}/logs/{{ inventory_hostname_short }}.log 2>&1 &
+    nohup {{ domain_home }}/bin/startManagedServer_{{ wls_server_name }}.sh \
+      > {{ domain_home }}/logs/{{ wls_server_name }}.log 2>&1 &
   become: true
   become_user: "{{ oracle_user }}"
   environment:
@@ -94,7 +92,7 @@
 - name: Deploy Managed Server systemd service
   ansible.builtin.template:
     src: wls-managed.service.j2
-    dest: /etc/systemd/system/wls-managed-{{ inventory_hostname_short }}.service
+    dest: /etc/systemd/system/wls-managed-{{ wls_server_name }}.service
     owner: root
     group: root
     mode: "0644"
@@ -102,6 +100,6 @@
 
 - name: Enable Managed Server service
   ansible.builtin.systemd:
-    name: "wls-managed-{{ inventory_hostname_short }}"
+    name: "wls-managed-{{ wls_server_name }}"
     enabled: true
     daemon_reload: true
