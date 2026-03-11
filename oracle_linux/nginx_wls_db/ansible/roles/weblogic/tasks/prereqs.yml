@@ -15,6 +15,14 @@
       - unzip
     state: present
 
+- name: Create oracle OS groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - "{{ oracle_group }}"
+    - dba
+
 - name: Create oracle OS user for WLS
   ansible.builtin.user:
     name: "{{ oracle_user }}"
