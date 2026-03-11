@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<jdbc-data-source xmlns="http://xmlns.oracle.com/weblogic/jdbc-data-source">
+  <name>{{ wls_ds_name }}</name>
+
+  <jdbc-driver-params>
+    <url>{{ wls_ds_url }}</url>
+    <driver-name>{{ wls_ds_driver }}</driver-name>
+    <properties>
+      <property>
+        <name>user</name>
+        <value>{{ wls_ds_user }}</value>
+      </property>
+    </properties>
+    <password-encrypted>{{ wls_ds_password }}</password-encrypted>
+  </jdbc-driver-params>
+
+  <jdbc-connection-pool-params>
+    <initial-capacity>{{ wls_ds_initial_capacity }}</initial-capacity>
+    <max-capacity>{{ wls_ds_max_capacity }}</max-capacity>
+    <test-connections-on-reserve>true</test-connections-on-reserve>
+    <test-table-name>SQL SELECT 1 FROM DUAL</test-table-name>
+  </jdbc-connection-pool-params>
+
+  <jdbc-data-source-params>
+    <jndi-name>{{ wls_ds_jndi }}</jndi-name>
+    <global-transactions-protocol>TwoPhaseCommit</global-transactions-protocol>
+  </jdbc-data-source-params>
+</jdbc-data-source>
