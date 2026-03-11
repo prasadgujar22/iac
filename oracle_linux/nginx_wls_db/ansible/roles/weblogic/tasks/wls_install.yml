@@ -20,6 +20,11 @@
     group: "{{ oracle_group }}"
     mode: "0640"
 
+- name: Check if WebLogic is already installed
+  ansible.builtin.stat:
+    path: "{{ mw_home }}/oracle_common/common/bin/wlst.sh"
+  register: wls_installed
+
 - name: Run WebLogic 14.1.2 silent installation
   ansible.builtin.command: >
     {{ jdk_home }}/bin/java
@@ -33,10 +38,17 @@
     JAVA_HOME: "{{ jdk_home }}"
     PATH:      "{{ jdk_home }}/bin:{{ ansible_env.PATH }}"
   register: wls_install_result
-  failed_when:
-    - wls_install_result.rc not in [0, 1]
-    - '"Install successful" not in wls_install_result.stdout'
+  failed_when: >
+    wls_install_result.rc not in [0, 1]
+    or "Install successful" not in (wls_install_result.stdout | default(''))
   changed_when: '"Install successful" in wls_install_result.stdout'
+  when: not wls_installed.stat.exists
+
+- name: Verify WebLogic installation
+  ansible.builtin.stat:
+    path: "{{ mw_home }}/oracle_common/common/bin/wlst.sh"
+  register: wls_verify
+  failed_when: not wls_verify.stat.exists
 
 - name: Set WLS environment in oracle user profile
   ansible.builtin.blockinfile:

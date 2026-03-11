@@ -11,6 +11,19 @@
     group: "{{ oracle_group }}"
     mode: "0640"
 
+- name: Check if domain already exists
+  ansible.builtin.stat:
+    path: "{{ domain_home }}/config/config.xml"
+  register: domain_exists
+
+- name: Create domain logs directory
+  ansible.builtin.file:
+    path: "{{ domain_home }}/logs"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0755"
+
 - name: Create WebLogic domain via WLST
   ansible.builtin.command: >
     {{ mw_home }}/oracle_common/common/bin/wlst.sh
@@ -22,10 +35,11 @@
     MW_HOME:   "{{ mw_home }}"
     PATH:      "{{ jdk_home }}/bin:{{ mw_home }}/oracle_common/common/bin:{{ ansible_env.PATH }}"
   register: domain_create_result
-  failed_when:
-    - domain_create_result.rc != 0
-    - '"Domain created successfully" not in domain_create_result.stdout'
+  failed_when: >
+    domain_create_result.rc != 0
+    or "Domain created successfully" not in domain_create_result.stdout
   changed_when: '"Domain created successfully" in domain_create_result.stdout'
+  when: not domain_exists.stat.exists
 
 - name: Start WebLogic Admin Server
   ansible.builtin.shell: |
