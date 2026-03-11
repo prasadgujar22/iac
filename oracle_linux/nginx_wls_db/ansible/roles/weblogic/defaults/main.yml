@@ -1,0 +1,13 @@
+---
+# WebLogic role defaults – overridden by group_vars/wls_nodes.yml
+jdk_home:   /u01/app/jdk17
+mw_home:    /u01/app/oracle/middleware
+wls_home:   "{{ mw_home }}/wlserver"
+domain_name: wls_domain
+domain_home: /u01/app/oracle/domains/wls_domain
+admin_server_port: 7001
+managed_server_port: 7003
+node_manager_port: 5556
+wls_admin_user: weblogic
+wls_admin_password: Weblogic_Passw0rd1
+installer_stage: /opt/oracle/stage

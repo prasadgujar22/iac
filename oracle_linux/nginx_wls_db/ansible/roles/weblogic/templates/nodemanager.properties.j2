@@ -1,0 +1,11 @@
+# Node Manager properties – managed by Ansible
+NodeManagerHome={{ domain_home }}/nodemanager
+ListenAddress={{ ansible_host }}
+ListenPort={{ node_manager_port }}
+NMType={{ node_manager_type }}
+JavaHome={{ jdk_home }}
+StartScriptEnabled=true
+StartScriptName=startWebLogic.sh
+LogFile={{ domain_home }}/nodemanager/nodemanager.log
+LogLevel=INFO
+DomainsDirRemoteSharingEnabled=false

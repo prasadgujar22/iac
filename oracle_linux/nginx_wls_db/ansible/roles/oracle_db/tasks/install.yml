@@ -1,0 +1,54 @@
+---
+# =============================================================================
+# Oracle Database 19c software installation (silent)
+# =============================================================================
+
+- name: Copy Oracle DB installer to staging area
+  ansible.builtin.copy:
+    src: "{{ local_installer_src }}/{{ oracle_db_zip }}"
+    dest: "{{ installer_stage }}/{{ oracle_db_zip }}"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0644"
+  when: oracle_db_zip != ''
+
+- name: Unzip Oracle DB installer into ORACLE_HOME
+  ansible.builtin.unarchive:
+    src: "{{ installer_stage }}/{{ oracle_db_zip }}"
+    dest: "{{ oracle_home }}"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    remote_src: true
+    creates: "{{ oracle_home }}/runInstaller"
+
+- name: Deploy Oracle DB silent response file
+  ansible.builtin.template:
+    src: db_install.rsp.j2
+    dest: "{{ installer_stage }}/db_install.rsp"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0640"
+
+- name: Run Oracle DB software-only silent installation
+  ansible.builtin.command: >
+    {{ oracle_home }}/runInstaller
+    -silent
+    -responseFile {{ installer_stage }}/db_install.rsp
+    -ignorePrereqFailure
+  become: true
+  become_user: "{{ oracle_user }}"
+  register: db_install_result
+  failed_when:
+    - db_install_result.rc not in [0, 6]
+    - '"Successfully Setup Software" not in db_install_result.stdout'
+  changed_when: '"Successfully Setup Software" in db_install_result.stdout'
+
+- name: Execute orainstRoot.sh (inventory registration)
+  ansible.builtin.command: "{{ oracle_inventory }}/orainstRoot.sh"
+  register: orainst_result
+  changed_when: orainst_result.rc == 0
+
+- name: Execute root.sh (Oracle home root scripts)
+  ansible.builtin.command: "{{ oracle_home }}/root.sh"
+  register: root_result
+  changed_when: root_result.rc == 0

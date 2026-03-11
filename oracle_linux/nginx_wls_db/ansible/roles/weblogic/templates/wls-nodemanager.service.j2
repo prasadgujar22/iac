@@ -1,0 +1,22 @@
+[Unit]
+Description=Oracle WebLogic Node Manager ({{ domain_name }})
+After=network.target
+
+[Service]
+Type=simple
+User={{ oracle_user }}
+Group={{ oracle_group }}
+Environment="JAVA_HOME={{ jdk_home }}"
+Environment="MW_HOME={{ mw_home }}"
+Environment="DOMAIN_HOME={{ domain_home }}"
+Environment="PATH={{ jdk_home }}/bin:{{ mw_home }}/oracle_common/common/bin:/usr/bin:/bin"
+ExecStart={{ domain_home }}/bin/startNodeManager.sh
+StandardOutput=append:{{ domain_home }}/logs/nodemanager.log
+StandardError=append:{{ domain_home }}/logs/nodemanager_err.log
+TimeoutStartSec=120
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

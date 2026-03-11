@@ -1,0 +1,46 @@
+---
+# =============================================================================
+# JDK 17 installation
+# =============================================================================
+
+- name: Copy JDK 17 RPM to staging area
+  ansible.builtin.copy:
+    src: "{{ local_installer_src }}/{{ jdk_rpm }}"
+    dest: "{{ installer_stage }}/{{ jdk_rpm }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: jdk_rpm != ''
+
+- name: Install JDK 17 RPM
+  ansible.builtin.dnf:
+    name: "{{ installer_stage }}/{{ jdk_rpm }}"
+    state: present
+    disable_gpg_check: true
+
+- name: Find JDK 17 installation path
+  ansible.builtin.find:
+    paths: /usr/lib/jvm
+    patterns: "java-17*"
+    file_type: directory
+  register: jdk17_path
+
+- name: Create JDK home symlink
+  ansible.builtin.file:
+    src: "{{ jdk17_path.files[0].path }}"
+    dest: "{{ jdk_home }}"
+    state: link
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+  when: jdk17_path.files | length > 0
+
+- name: Set JAVA_HOME in oracle user profile
+  ansible.builtin.blockinfile:
+    path: /home/{{ oracle_user }}/.bash_profile
+    create: true
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    marker: "# {mark} ANSIBLE MANAGED – JDK environment"
+    block: |
+      export JAVA_HOME={{ jdk_home }}
+      export PATH=$JAVA_HOME/bin:$PATH

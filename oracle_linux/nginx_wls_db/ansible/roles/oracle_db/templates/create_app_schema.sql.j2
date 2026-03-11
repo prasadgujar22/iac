@@ -1,0 +1,23 @@
+-- create_app_schema.sql – managed by Ansible
+-- Creates the application schema for WebLogic DataSource in the PDB
+
+CONNECT sys/{{ oracle_sys_password }}@{{ oracle_pdb_name }} AS SYSDBA
+
+-- Create tablespace
+CREATE TABLESPACE {{ oracle_app_tablespace }}
+  DATAFILE '{{ oracle_data_dir }}/{{ oracle_pdb_name | lower }}/wlsapp01.dbf'
+  SIZE 500M AUTOEXTEND ON NEXT 100M MAXSIZE 5G;
+
+-- Create application user
+CREATE USER {{ oracle_app_schema_user }}
+  IDENTIFIED BY "{{ oracle_app_schema_password }}"
+  DEFAULT TABLESPACE {{ oracle_app_tablespace }}
+  TEMPORARY TABLESPACE TEMP
+  QUOTA UNLIMITED ON {{ oracle_app_tablespace }};
+
+-- Grant privileges
+GRANT CONNECT, RESOURCE TO {{ oracle_app_schema_user }};
+GRANT CREATE SESSION TO {{ oracle_app_schema_user }};
+GRANT CREATE TABLE, CREATE SEQUENCE, CREATE VIEW TO {{ oracle_app_schema_user }};
+
+EXIT;

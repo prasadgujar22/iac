@@ -1,0 +1,15 @@
+---
+# Common OS prerequisites defaults
+common_packages:
+  - tar
+  - unzip
+  - curl
+  - wget
+  - net-tools
+  - bind-utils
+  - chrony
+  - policycoreutils-python-utils
+
+ntp_servers:
+  - 0.pool.ntp.org
+  - 1.pool.ntp.org

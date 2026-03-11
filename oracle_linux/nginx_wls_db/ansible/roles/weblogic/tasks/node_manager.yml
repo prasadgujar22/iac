@@ -1,0 +1,47 @@
+---
+# =============================================================================
+# Start Node Manager on all WLS nodes
+# =============================================================================
+
+- name: Configure Node Manager properties
+  ansible.builtin.template:
+    src: nodemanager.properties.j2
+    dest: "{{ domain_home }}/nodemanager/nodemanager.properties"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0640"
+
+- name: Start Node Manager
+  ansible.builtin.shell: |
+    nohup {{ domain_home }}/bin/startNodeManager.sh \
+      > {{ domain_home }}/logs/nodemanager.log 2>&1 &
+  become: true
+  become_user: "{{ oracle_user }}"
+  environment:
+    JAVA_HOME:   "{{ jdk_home }}"
+    MW_HOME:     "{{ mw_home }}"
+    DOMAIN_HOME: "{{ domain_home }}"
+  changed_when: true
+
+- name: Wait for Node Manager to start on port {{ node_manager_port }}
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ node_manager_port }}"
+    delay: 5
+    timeout: 120
+    state: started
+
+- name: Deploy Node Manager systemd service
+  ansible.builtin.template:
+    src: wls-nodemanager.service.j2
+    dest: /etc/systemd/system/wls-nodemanager.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload systemd
+
+- name: Enable Node Manager service
+  ansible.builtin.systemd:
+    name: wls-nodemanager
+    enabled: true
+    daemon_reload: true

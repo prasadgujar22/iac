@@ -1,0 +1,57 @@
+---
+# =============================================================================
+# Prepare dedicated disks for Oracle datafiles and FRA
+# scsi1 (/dev/sdb) → /u01/oradata
+# scsi2 (/dev/sdc) → /u01/fra
+# =============================================================================
+
+- name: Create ext4 filesystem on Oracle data disk
+  community.general.filesystem:
+    fstype: ext4
+    dev: "{{ oracle_data_disk }}"
+    opts: -L ORADATA
+
+- name: Create ext4 filesystem on FRA disk
+  community.general.filesystem:
+    fstype: ext4
+    dev: "{{ oracle_fra_disk }}"
+    opts: -L ORAFRA
+
+- name: Create mount point directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0755"
+  loop:
+    - "{{ oracle_data_dir }}"
+    - "{{ oracle_fra_dir }}"
+
+- name: Mount Oracle data disk persistently
+  ansible.posix.mount:
+    path: "{{ oracle_data_dir }}"
+    src: "LABEL=ORADATA"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted
+
+- name: Mount FRA disk persistently
+  ansible.posix.mount:
+    path: "{{ oracle_fra_dir }}"
+    src: "LABEL=ORAFRA"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted
+
+- name: Set ownership of mount points after mounting
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0755"
+    recurse: false
+  loop:
+    - "{{ oracle_data_dir }}"
+    - "{{ oracle_fra_dir }}"

@@ -1,0 +1,70 @@
+---
+# =============================================================================
+# roles/nginx/tasks/main.yml
+# Install and configure Nginx as a reverse proxy / load balancer for WebLogic
+# =============================================================================
+
+- name: Install EPEL repository (required for Nginx on OL9)
+  ansible.builtin.dnf:
+    name: oracle-epel-release-el9
+    state: present
+  tags: [nginx_install]
+
+- name: Install Nginx
+  ansible.builtin.dnf:
+    name: "{{ nginx_package }}"
+    state: present
+  tags: [nginx_install]
+
+- name: Ensure Nginx service is enabled
+  ansible.builtin.systemd:
+    name: "{{ nginx_service }}"
+    enabled: true
+  tags: [nginx_install]
+
+# --- Firewall ---
+- name: Open HTTP port in firewalld
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+    immediate: true
+  tags: [nginx_firewall]
+
+- name: Open HTTPS port in firewalld
+  ansible.posix.firewalld:
+    service: https
+    permanent: true
+    state: enabled
+    immediate: true
+  tags: [nginx_firewall]
+
+# --- Configuration ---
+- name: Remove default Nginx server block
+  ansible.builtin.file:
+    path: /etc/nginx/conf.d/default.conf
+    state: absent
+  notify: reload nginx
+  tags: [nginx_config]
+
+- name: Deploy WebLogic upstream + virtual host config
+  ansible.builtin.template:
+    src: weblogic_proxy.conf.j2
+    dest: /etc/nginx/conf.d/weblogic_proxy.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload nginx
+  tags: [nginx_config]
+
+- name: Validate Nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  tags: [nginx_config]
+
+- name: Start and enable Nginx
+  ansible.builtin.systemd:
+    name: "{{ nginx_service }}"
+    state: started
+    enabled: true
+  tags: [nginx_service]

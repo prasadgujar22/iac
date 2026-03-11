@@ -1,0 +1,65 @@
+---
+# =============================================================================
+# Create WLS domain on the Admin Server
+# =============================================================================
+
+- name: Deploy domain creation WLST script
+  ansible.builtin.template:
+    src: create_domain.py.j2
+    dest: "{{ installer_stage }}/create_domain.py"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0640"
+
+- name: Create WebLogic domain via WLST
+  ansible.builtin.command: >
+    {{ mw_home }}/oracle_common/common/bin/wlst.sh
+    {{ installer_stage }}/create_domain.py
+  become: true
+  become_user: "{{ oracle_user }}"
+  environment:
+    JAVA_HOME: "{{ jdk_home }}"
+    MW_HOME:   "{{ mw_home }}"
+    PATH:      "{{ jdk_home }}/bin:{{ mw_home }}/oracle_common/common/bin:{{ ansible_env.PATH }}"
+  register: domain_create_result
+  failed_when:
+    - domain_create_result.rc != 0
+    - '"Domain created successfully" not in domain_create_result.stdout'
+  changed_when: '"Domain created successfully" in domain_create_result.stdout'
+
+- name: Start WebLogic Admin Server
+  ansible.builtin.shell: |
+    nohup {{ domain_home }}/bin/startWebLogic.sh \
+      > {{ domain_home }}/logs/admin_server.log 2>&1 &
+    echo $!
+  become: true
+  become_user: "{{ oracle_user }}"
+  environment:
+    JAVA_HOME: "{{ jdk_home }}"
+    MW_HOME:   "{{ mw_home }}"
+    DOMAIN_HOME: "{{ domain_home }}"
+  register: admin_start
+  changed_when: true
+
+- name: Wait for Admin Server to accept connections on port {{ admin_server_port }}
+  ansible.builtin.wait_for:
+    host: "{{ admin_server_host }}"
+    port: "{{ admin_server_port }}"
+    delay: 10
+    timeout: 300
+    state: started
+
+- name: Deploy Admin Server systemd service
+  ansible.builtin.template:
+    src: wls-admin.service.j2
+    dest: /etc/systemd/system/wls-admin.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload systemd
+
+- name: Enable Admin Server service
+  ansible.builtin.systemd:
+    name: wls-admin
+    enabled: true
+    daemon_reload: true

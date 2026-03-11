@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# WebLogic 14.1.2 software installation (silent)
+# =============================================================================
+
+- name: Copy WLS installer JAR to staging area
+  ansible.builtin.copy:
+    src: "{{ local_installer_src }}/{{ wls_installer_jar }}"
+    dest: "{{ installer_stage }}/{{ wls_installer_jar }}"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0644"
+  when: wls_installer_jar != ''
+
+- name: Deploy WLS silent install response file
+  ansible.builtin.template:
+    src: wls_install.rsp.j2
+    dest: "{{ installer_stage }}/wls_install.rsp"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0640"
+
+- name: Run WebLogic 14.1.2 silent installation
+  ansible.builtin.command: >
+    {{ jdk_home }}/bin/java
+    -jar {{ installer_stage }}/{{ wls_installer_jar }}
+    -silent
+    -responseFile {{ installer_stage }}/wls_install.rsp
+    -invPtrLoc {{ oracle_inventory }}/oraInst.loc
+  become: true
+  become_user: "{{ oracle_user }}"
+  environment:
+    JAVA_HOME: "{{ jdk_home }}"
+    PATH:      "{{ jdk_home }}/bin:{{ ansible_env.PATH }}"
+  register: wls_install_result
+  failed_when:
+    - wls_install_result.rc not in [0, 1]
+    - '"Install successful" not in wls_install_result.stdout'
+  changed_when: '"Install successful" in wls_install_result.stdout'
+
+- name: Set WLS environment in oracle user profile
+  ansible.builtin.blockinfile:
+    path: /home/{{ oracle_user }}/.bash_profile
+    marker: "# {mark} ANSIBLE MANAGED – WebLogic environment"
+    block: |
+      export MW_HOME={{ mw_home }}
+      export WLS_HOME={{ wls_home }}
+      export DOMAIN_HOME={{ domain_home }}
+      export PATH=$MW_HOME/oracle_common/common/bin:$PATH

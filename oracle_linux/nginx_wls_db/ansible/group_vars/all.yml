@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# group_vars/all.yml – variables shared across all roles
+# =============================================================================
+
+# --- Oracle OS users & groups ---
+oracle_user:  oracle
+oracle_group: oinstall
+oracle_groups:
+  - oinstall
+  - dba
+  - oper
+  - backupdba
+  - dgdba
+  - kmdba
+  - racdba
+
+# --- Base directories ---
+oracle_base:      /u01/app/oracle
+oracle_inventory: /u01/app/oraInventory
+
+# --- Installer source on the Ansible control node ---
+# Place installer media here before running playbooks.
+local_installer_src: "{{ playbook_dir }}/files"
+
+# --- Staging area on remote hosts ---
+installer_stage: /opt/oracle/stage
+
+# --- Software media filenames (download from Oracle eDelivery / MOS) ---
+oracle_db_zip:      LINUX.X64_193000_db_home.zip   # Oracle DB 19c
+jdk_rpm:            jdk-17_linux-x64_bin.rpm        # JDK 17 RPM from Oracle
+wls_installer_jar:  fmw_14.1.2.0.0_wls.jar          # WLS 14.1.2 silent installer
+
+# --- Optional patches (set to '' to skip) ---
+oracle_opatch_zip: ''

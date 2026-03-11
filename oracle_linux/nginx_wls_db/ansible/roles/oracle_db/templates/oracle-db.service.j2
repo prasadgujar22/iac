@@ -1,0 +1,21 @@
+[Unit]
+Description=Oracle Database 19c ({{ oracle_db_name }})
+After=network.target oracle-listener.service
+Wants=oracle-listener.service
+
+[Service]
+Type=forking
+User={{ oracle_user }}
+Group={{ oracle_group }}
+Environment="ORACLE_HOME={{ oracle_home }}"
+Environment="ORACLE_BASE={{ oracle_base }}"
+Environment="ORACLE_SID={{ oracle_db_name }}"
+Environment="PATH={{ oracle_home }}/bin:/usr/bin:/bin"
+ExecStart={{ oracle_home }}/bin/dbstart {{ oracle_home }}
+ExecStop={{ oracle_home }}/bin/dbshut {{ oracle_home }}
+TimeoutStartSec=600
+TimeoutStopSec=300
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

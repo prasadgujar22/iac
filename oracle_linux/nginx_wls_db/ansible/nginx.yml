@@ -1,0 +1,16 @@
+---
+# =============================================================================
+# nginx.yml – Install and configure Nginx as WLS load balancer
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini nginx.yml
+#   ansible-playbook -i inventory/hosts.ini nginx.yml --tags nginx_config
+# =============================================================================
+
+- name: Install and configure Nginx load balancer
+  hosts: nginx
+  gather_facts: true
+  become: true
+  tags: [nginx]
+  roles:
+    - role: nginx
