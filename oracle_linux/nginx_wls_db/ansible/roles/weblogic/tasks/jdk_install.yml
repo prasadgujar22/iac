@@ -20,8 +20,12 @@
 
 - name: Find JDK 17 installation path
   ansible.builtin.find:
-    paths: /usr/lib/jvm
-    patterns: "java-17*"
+    paths:
+      - /usr/lib/jvm
+      - /usr/java
+    patterns:
+      - "java-17*"
+      - "jdk-17*"
     file_type: directory
   register: jdk17_path
 
