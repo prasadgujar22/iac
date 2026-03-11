@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# roles/oracle_db/tasks/main.yml
+# Oracle Database 19c standalone installation on Oracle Linux 9
+# =============================================================================
+
+- import_tasks: prereqs.yml
+  tags: [db_prereqs]
+
+- import_tasks: storage.yml
+  tags: [db_storage]
+
+- import_tasks: install.yml
+  tags: [db_install]
+
+- import_tasks: create_db.yml
+  tags: [db_create]
+
+- import_tasks: listener.yml
+  tags: [db_listener]
+
+- import_tasks: app_schema.yml
+  tags: [db_schema]

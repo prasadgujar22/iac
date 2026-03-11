@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# site.yml – Full stack deployment
+#   1. Common OS prerequisites on all nodes
+#   2. Nginx load balancer
+#   3. JDK 17 + WebLogic 14.1.2 installation (all WLS nodes in parallel)
+#   4. WLS domain creation + Admin Server start
+#   5. Managed Servers distribution and start
+#   6. Node Manager start on all WLS nodes
+#   7. Oracle Database 19c
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini site.yml
+#   ansible-playbook -i inventory/hosts.ini site.yml --tags common
+#   ansible-playbook -i inventory/hosts.ini site.yml --tags nginx
+#   ansible-playbook -i inventory/hosts.ini site.yml --tags wls_install
+# =============================================================================
+
+- import_playbook: common.yml
+- import_playbook: nginx.yml
+- import_playbook: weblogic.yml
+- import_playbook: oracle_db.yml

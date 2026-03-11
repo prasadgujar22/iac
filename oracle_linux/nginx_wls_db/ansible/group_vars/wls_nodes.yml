@@ -1,0 +1,53 @@
+---
+# =============================================================================
+# group_vars/wls_nodes.yml – Oracle WebLogic 14.1.2 cluster variables
+# =============================================================================
+
+# --- JDK 17 ---
+jdk_home: /u01/app/jdk17
+
+# --- WebLogic middleware home ---
+mw_home:  /u01/app/oracle/middleware
+wls_home: "{{ mw_home }}/wlserver"
+
+# --- Domain settings ---
+domain_name: wls_domain
+domain_home: /u01/app/oracle/domains/wls_domain
+domain_logs: /u01/app/oracle/domains/wls_domain/logs
+
+# --- Administration Server ---
+admin_server_name:     AdminServer
+admin_server_host:     192.168.29.131
+admin_server_port:     7001
+admin_server_ssl_port: 7002
+admin_server_url:      "t3://192.168.29.131:7001"
+
+# --- Managed Servers ---
+managed_server_port:     7003
+managed_server_ssl_port: 7004
+managed_servers:
+  - name: ms1
+    host: 192.168.29.132
+  - name: ms2
+    host: 192.168.29.133
+
+# --- Cluster ---
+cluster_name: WLSCluster
+
+# --- WebLogic credentials (use ansible-vault in production) ---
+wls_admin_user:     weblogic
+wls_admin_password: Weblogic_Passw0rd1
+
+# --- Node Manager ---
+node_manager_port: 5556
+node_manager_type: Plain   # use SSL in production
+
+# --- Oracle DB datasource ---
+wls_ds_name:        OracleDS
+wls_ds_jndi:        jdbc/OracleDS
+wls_ds_driver:      oracle.jdbc.OracleDriver
+wls_ds_url:         "jdbc:oracle:thin:@192.168.29.134:1521/WLSPDB"
+wls_ds_user:        wlsapp
+wls_ds_password:    Wlsapp_Passw0rd1
+wls_ds_max_capacity: 20
+wls_ds_initial_capacity: 5

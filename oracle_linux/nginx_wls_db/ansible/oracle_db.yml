@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# oracle_db.yml – Oracle Database 19c standalone installation
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini oracle_db.yml
+#   ansible-playbook -i inventory/hosts.ini oracle_db.yml --tags db_prereqs
+#   ansible-playbook -i inventory/hosts.ini oracle_db.yml --tags db_create
+#   ansible-playbook -i inventory/hosts.ini oracle_db.yml --tags db_schema
+# =============================================================================
+
+- name: Install and configure Oracle Database 19c
+  hosts: db_server
+  gather_facts: true
+  become: true
+  tags: [oracle_db]
+  roles:
+    - role: oracle_db

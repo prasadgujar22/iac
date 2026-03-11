@@ -1,0 +1,61 @@
+---
+# =============================================================================
+# WebLogic OS prerequisites
+# =============================================================================
+
+- name: Install JDK prerequisite packages
+  ansible.builtin.dnf:
+    name:
+      - libnsl
+      - glibc
+      - glibc-devel
+      - libstdc++
+      - libXi
+      - libXtst
+      - unzip
+    state: present
+
+- name: Create oracle OS user for WLS
+  ansible.builtin.user:
+    name: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    groups: dba
+    home: /home/{{ oracle_user }}
+    shell: /bin/bash
+    createhome: true
+    state: present
+
+- name: Create WLS base directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0755"
+  loop:
+    - "{{ oracle_base }}"
+    - "{{ mw_home }}"
+    - "{{ domain_home }}"
+    - "{{ installer_stage }}"
+    - /u01/app/jdk17
+
+- name: Open WLS Admin Server port in firewalld
+  ansible.posix.firewalld:
+    port: "{{ admin_server_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Open WLS Managed Server port in firewalld
+  ansible.posix.firewalld:
+    port: "{{ managed_server_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Open Node Manager port in firewalld
+  ansible.posix.firewalld:
+    port: "{{ node_manager_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true

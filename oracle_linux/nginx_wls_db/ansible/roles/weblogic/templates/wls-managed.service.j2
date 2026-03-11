@@ -1,0 +1,23 @@
+[Unit]
+Description=Oracle WebLogic Managed Server ({{ inventory_hostname_short }})
+After=network.target wls-nodemanager.service
+
+[Service]
+Type=simple
+User={{ oracle_user }}
+Group={{ oracle_group }}
+Environment="JAVA_HOME={{ jdk_home }}"
+Environment="MW_HOME={{ mw_home }}"
+Environment="DOMAIN_HOME={{ domain_home }}"
+Environment="ADMIN_URL={{ admin_server_url }}"
+Environment="PATH={{ jdk_home }}/bin:{{ mw_home }}/oracle_common/common/bin:/usr/bin:/bin"
+ExecStart={{ domain_home }}/bin/startManagedServer_{{ inventory_hostname_short }}.sh
+StandardOutput=append:{{ domain_home }}/logs/{{ inventory_hostname_short }}.log
+StandardError=append:{{ domain_home }}/logs/{{ inventory_hostname_short }}_err.log
+TimeoutStartSec=300
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+---
+# =============================================================================
+# group_vars/nginx.yml – variables for [nginx] group
+# =============================================================================
+
+# --- Nginx package ---
+nginx_package: nginx
+nginx_service: nginx
+
+# --- WebLogic upstream cluster backends ---
+# These match the WLS Managed Server IPs and HTTP port
+nginx_upstream_name: weblogic_cluster
+nginx_upstream_servers:
+  - host: 192.168.29.132
+    port: 7003
+  - host: 192.168.29.133
+    port: 7003
+
+# --- Virtual host configuration ---
+nginx_server_name:  "_"          # catch-all; change to FQDN in production
+nginx_listen_port:  80
+nginx_listen_port_ssl: 443
+
+# --- Application context path proxied to WebLogic ---
+# Nginx proxies /  → http://weblogic_cluster/
+nginx_proxy_context: "/"
+
+# --- Logging ---
+nginx_access_log:  /var/log/nginx/weblogic_access.log
+nginx_error_log:   /var/log/nginx/weblogic_error.log
+
+# --- Health check endpoint exposed by WLS (adjust to your app) ---
+nginx_health_check_path: /health

@@ -1,0 +1,15 @@
+---
+# Role defaults – overridden by group_vars/nginx.yml or extra vars
+
+nginx_package:      nginx
+nginx_service:      nginx
+nginx_listen_port:  80
+nginx_server_name:  "_"
+nginx_proxy_context: "/"
+nginx_upstream_name: weblogic_cluster
+nginx_upstream_servers:
+  - host: 127.0.0.1
+    port: 7003
+nginx_access_log: /var/log/nginx/access.log
+nginx_error_log:  /var/log/nginx/error.log
+nginx_health_check_path: /health

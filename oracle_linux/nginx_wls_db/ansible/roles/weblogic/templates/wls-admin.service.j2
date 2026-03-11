@@ -1,0 +1,23 @@
+[Unit]
+Description=Oracle WebLogic Administration Server ({{ domain_name }})
+After=network.target
+
+[Service]
+Type=simple
+User={{ oracle_user }}
+Group={{ oracle_group }}
+Environment="JAVA_HOME={{ jdk_home }}"
+Environment="MW_HOME={{ mw_home }}"
+Environment="DOMAIN_HOME={{ domain_home }}"
+Environment="PATH={{ jdk_home }}/bin:{{ mw_home }}/oracle_common/common/bin:/usr/bin:/bin"
+ExecStart={{ domain_home }}/bin/startWebLogic.sh
+ExecStop={{ domain_home }}/bin/stopWebLogic.sh
+StandardOutput=append:{{ domain_home }}/logs/admin_server.log
+StandardError=append:{{ domain_home }}/logs/admin_server_err.log
+TimeoutStartSec=300
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

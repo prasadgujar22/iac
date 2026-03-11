@@ -1,0 +1,87 @@
+---
+# =============================================================================
+# weblogic.yml – Oracle WebLogic 14.1.2 cluster setup
+#
+# Run order:
+#   1. OS prerequisites on all WLS nodes (parallel)
+#   2. JDK 17 + WLS software install (all nodes in parallel)
+#   3. Domain creation on Admin Server only
+#   4. Managed Servers: distribute domain + start (before Node Manager
+#      so that unpack.sh finds an empty domain_home directory)
+#   5. Node Manager start on all nodes
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini weblogic.yml
+#   ansible-playbook -i inventory/hosts.ini weblogic.yml --tags wls_install
+#   ansible-playbook -i inventory/hosts.ini weblogic.yml --tags domain_create
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Phase 1: OS prerequisites (all WLS nodes in parallel)
+# ---------------------------------------------------------------------------
+- name: WebLogic OS prerequisites
+  hosts: wls_nodes
+  gather_facts: true
+  become: true
+  tags: [wls_prereqs]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: prereqs
+
+# ---------------------------------------------------------------------------
+# Phase 2: Install JDK 17 + WebLogic software (all nodes in parallel)
+# ---------------------------------------------------------------------------
+- name: Install JDK 17 and WebLogic 14.1.2
+  hosts: wls_nodes
+  gather_facts: false
+  become: true
+  tags: [wls_install]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: jdk_install
+    - import_role:
+        name: weblogic
+        tasks_from: wls_install
+
+# ---------------------------------------------------------------------------
+# Phase 3: Create domain on Admin Server
+# ---------------------------------------------------------------------------
+- name: Create WLS domain and start Admin Server
+  hosts: wls_admin
+  gather_facts: false
+  become: true
+  tags: [domain_create]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: domain_create
+
+# ---------------------------------------------------------------------------
+# Phase 4: Distribute domain and start Managed Servers
+# (Must run before Node Manager so unpack.sh sees an empty domain_home)
+# ---------------------------------------------------------------------------
+- name: Distribute domain and start Managed Servers
+  hosts: wls_managed
+  gather_facts: false
+  become: true
+  tags: [managed_servers]
+  serial: 1   # pack/fetch/copy – run sequentially to avoid race on fetch
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: managed_servers
+
+# ---------------------------------------------------------------------------
+# Phase 5: Start Node Manager on all WLS nodes
+# ---------------------------------------------------------------------------
+- name: Start Node Manager on all WLS nodes
+  hosts: wls_nodes
+  gather_facts: false
+  become: true
+  tags: [node_manager]
+  tasks:
+    - import_role:
+        name: weblogic
+        tasks_from: node_manager
