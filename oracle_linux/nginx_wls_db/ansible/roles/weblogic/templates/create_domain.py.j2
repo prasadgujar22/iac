@@ -47,6 +47,7 @@ set('StartScriptEnabled', 'true')
 set('StartScriptName', 'startWebLogic.sh')
 
 {% if wls_ds_name is defined %}
+cd('/')
 # --- JDBC DataSource for Oracle DB ---
 create('{{ wls_ds_name }}', 'JDBCSystemResource')
 cd('/JDBCSystemResource/{{ wls_ds_name }}/JdbcResource/{{ wls_ds_name }}')
