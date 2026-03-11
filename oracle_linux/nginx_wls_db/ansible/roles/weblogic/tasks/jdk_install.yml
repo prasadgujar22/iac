@@ -29,6 +29,13 @@
     file_type: directory
   register: jdk17_path
 
+- name: Remove existing jdk_home directory if not a symlink
+  ansible.builtin.file:
+    path: "{{ jdk_home }}"
+    state: absent
+  when:
+    - jdk17_path.files | length > 0
+
 - name: Create JDK home symlink
   ansible.builtin.file:
     src: "{{ jdk17_path.files[0].path }}"
