@@ -40,8 +40,8 @@
   register: wls_install_result
   failed_when: >
     wls_install_result.rc not in [0, 1]
-    or "Install successful" not in (wls_install_result.stdout | default(''))
-  changed_when: '"Install successful" in wls_install_result.stdout'
+    or "completed successfully" not in (wls_install_result.stdout | default(''))
+  changed_when: '"completed successfully" in wls_install_result.stdout'
   when: not wls_installed.stat.exists
 
 - name: Verify WebLogic installation
