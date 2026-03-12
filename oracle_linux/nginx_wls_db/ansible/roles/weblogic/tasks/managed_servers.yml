@@ -3,10 +3,12 @@
 # Distribute domain to Managed Server nodes and start Managed Servers
 # =============================================================================
 
-- name: Check if domain template already exists on managed node
+- name: Check if domain template already exists on Admin Server
   ansible.builtin.stat:
     path: "{{ installer_stage }}/{{ domain_name }}_template.jar"
   register: template_exists
+  delegate_to: "{{ groups['wls_admin'][0] }}"
+  run_once: true
 
 - name: Pack domain on Admin Server (delegate)
   ansible.builtin.command: >
@@ -33,7 +35,6 @@
     flat: true
   delegate_to: "{{ groups['wls_admin'][0] }}"
   run_once: true
-  when: not template_exists.stat.exists
 
 - name: Copy domain template to managed nodes
   ansible.builtin.copy:
@@ -42,7 +43,6 @@
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: "0644"
-  when: not template_exists.stat.exists
 
 - name: Check if domain already unpacked on managed node
   ansible.builtin.stat:
