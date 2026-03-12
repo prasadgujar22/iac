@@ -58,6 +58,24 @@
     - not domain_exists.stat.exists
     - wls_ds_name is defined
 
+- name: Create AdminServer security directory for boot.properties
+  ansible.builtin.file:
+    path: "{{ domain_home }}/servers/AdminServer/security"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0750"
+
+- name: Deploy boot.properties (allows Production Mode unattended startup)
+  ansible.builtin.copy:
+    dest: "{{ domain_home }}/servers/AdminServer/security/boot.properties"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0600"
+    content: |
+      username={{ wls_admin_user }}
+      password={{ wls_admin_password }}
+
 - name: Start WebLogic Admin Server
   ansible.builtin.shell: |
     nohup {{ domain_home }}/bin/startWebLogic.sh \
