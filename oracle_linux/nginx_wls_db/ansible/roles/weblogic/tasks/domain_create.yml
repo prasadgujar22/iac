@@ -76,6 +76,16 @@
       username={{ wls_admin_user }}
       password={{ wls_admin_password }}
 
+- name: Check if Admin Server is already listening on port {{ admin_server_port }}
+  ansible.builtin.wait_for:
+    host: "{{ admin_server_host }}"
+    port: "{{ admin_server_port }}"
+    timeout: 5
+    state: started
+  register: admin_already_up
+  ignore_errors: true
+  changed_when: false
+
 - name: Start WebLogic Admin Server
   ansible.builtin.shell: |
     nohup {{ domain_home }}/bin/startWebLogic.sh \
@@ -89,6 +99,7 @@
     DOMAIN_HOME: "{{ domain_home }}"
   register: admin_start
   changed_when: true
+  when: admin_already_up is failed
 
 - name: Wait for Admin Server to accept connections on port {{ admin_server_port }}
   ansible.builtin.wait_for:
@@ -99,23 +110,24 @@
     state: started
   register: admin_wait
   ignore_errors: true
+  when: admin_already_up is failed
 
 - name: Show Admin Server log tail on startup failure
   ansible.builtin.command: >
     tail -100 {{ domain_home }}/logs/admin_server.log
   register: admin_log_tail
   changed_when: false
-  when: admin_wait is failed
+  when: admin_already_up is failed and admin_wait is failed
 
 - name: Print Admin Server log on startup failure
   ansible.builtin.debug:
     var: admin_log_tail.stdout_lines
-  when: admin_wait is failed
+  when: admin_already_up is failed and admin_wait is failed
 
 - name: Fail if Admin Server did not start
   ansible.builtin.fail:
     msg: "Admin Server did not start within 600 seconds. Check log output above."
-  when: admin_wait is failed
+  when: admin_already_up is failed and admin_wait is failed
 
 - name: Deploy Admin Server systemd service
   ansible.builtin.template:

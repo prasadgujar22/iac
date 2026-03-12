@@ -3,6 +3,11 @@
 # Distribute domain to Managed Server nodes and start Managed Servers
 # =============================================================================
 
+- name: Check if domain template already exists on managed node
+  ansible.builtin.stat:
+    path: "{{ installer_stage }}/{{ domain_name }}_template.jar"
+  register: template_exists
+
 - name: Pack domain on Admin Server (delegate)
   ansible.builtin.command: >
     {{ mw_home }}/oracle_common/common/bin/pack.sh
@@ -19,6 +24,7 @@
   run_once: true
   register: pack_result
   changed_when: pack_result.rc == 0
+  when: not template_exists.stat.exists
 
 - name: Fetch packed domain template to control node
   ansible.builtin.fetch:
@@ -27,6 +33,7 @@
     flat: true
   delegate_to: "{{ groups['wls_admin'][0] }}"
   run_once: true
+  when: not template_exists.stat.exists
 
 - name: Copy domain template to managed nodes
   ansible.builtin.copy:
@@ -35,6 +42,7 @@
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: "0644"
+  when: not template_exists.stat.exists
 
 - name: Check if domain already unpacked on managed node
   ansible.builtin.stat:
@@ -66,6 +74,16 @@
     group: "{{ oracle_group }}"
     mode: "0750"
 
+- name: Check if Managed Server is already listening on port {{ managed_server_port }}
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ managed_server_port }}"
+    timeout: 5
+    state: started
+  register: ms_already_up
+  ignore_errors: true
+  changed_when: false
+
 - name: Start Managed Server
   ansible.builtin.shell: |
     nohup {{ domain_home }}/bin/startManagedServer_{{ wls_server_name }}.sh \
@@ -78,6 +96,7 @@
     DOMAIN_HOME:  "{{ domain_home }}"
     ADMIN_URL:    "{{ admin_server_url }}"
   changed_when: true
+  when: ms_already_up is failed
 
 - name: Wait for Managed Server to start on port {{ managed_server_port }}
   ansible.builtin.wait_for:
@@ -86,6 +105,7 @@
     delay: 15
     timeout: 300
     state: started
+  when: ms_already_up is failed
 
 - name: Deploy Managed Server systemd service
   ansible.builtin.template:
