@@ -49,6 +49,12 @@
     path: "{{ domain_home }}/config/config.xml"
   register: managed_domain_exists
 
+- name: Remove partial domain directory on managed node (cleanup after failed prior run)
+  ansible.builtin.file:
+    path: "{{ domain_home }}"
+    state: absent
+  when: not managed_domain_exists.stat.exists
+
 - name: Unpack domain on managed node
   ansible.builtin.command: >
     {{ mw_home }}/oracle_common/common/bin/unpack.sh
