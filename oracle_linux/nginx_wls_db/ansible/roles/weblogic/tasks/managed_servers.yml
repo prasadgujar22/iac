@@ -46,8 +46,6 @@
     {{ mw_home }}/oracle_common/common/bin/unpack.sh
     -domain={{ domain_home }}
     -template={{ installer_stage }}/{{ domain_name }}_template.jar
-    -user_name={{ wls_admin_user }}
-    -password={{ wls_admin_password }}
   become: true
   become_user: "{{ oracle_user }}"
   environment:
@@ -56,8 +54,8 @@
   register: unpack_result
   failed_when: >
     unpack_result.rc != 0
-    or "unpack.sh completed" not in (unpack_result.stdout | default(''))
-  changed_when: '"unpack.sh completed" in unpack_result.stdout'
+    or "succeed: write Domain" not in (unpack_result.stdout | default(''))
+  changed_when: '"succeed: write Domain" in unpack_result.stdout'
   when: not managed_domain_exists.stat.exists
 
 - name: Deploy Managed Server startup script
