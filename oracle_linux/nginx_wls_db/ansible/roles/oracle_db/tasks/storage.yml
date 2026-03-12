@@ -5,17 +5,31 @@
 # scsi2 (/dev/sdc) → /u01/fra
 # =============================================================================
 
+- name: Check if Oracle data disk already has a filesystem
+  ansible.builtin.command: blkid {{ oracle_data_disk }}
+  register: data_blkid
+  changed_when: false
+  failed_when: false
+
 - name: Create ext4 filesystem on Oracle data disk
   community.general.filesystem:
     fstype: ext4
     dev: "{{ oracle_data_disk }}"
     opts: -L ORADATA
+  when: data_blkid.rc != 0
+
+- name: Check if FRA disk already has a filesystem
+  ansible.builtin.command: blkid {{ oracle_fra_disk }}
+  register: fra_blkid
+  changed_when: false
+  failed_when: false
 
 - name: Create ext4 filesystem on FRA disk
   community.general.filesystem:
     fstype: ext4
     dev: "{{ oracle_fra_disk }}"
     opts: -L ORAFRA
+  when: fra_blkid.rc != 0
 
 - name: Create mount point directories
   ansible.builtin.file:
