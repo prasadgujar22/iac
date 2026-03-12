@@ -98,6 +98,14 @@
       username={{ wls_admin_user }}
       password={{ wls_admin_password }}
 
+- name: Ensure Managed Server log directory exists
+  ansible.builtin.file:
+    path: "{{ domain_home }}/logs"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0755"
+
 - name: Check if Managed Server is already listening on port {{ managed_server_port }}
   ansible.builtin.wait_for:
     host: "{{ ansible_host }}"
@@ -138,6 +146,7 @@
     tail -100 {{ domain_home }}/logs/{{ wls_server_name }}.log
   register: ms_log_tail
   changed_when: false
+  ignore_errors: true
   when: ms_already_up is failed and ms_wait is failed
 
 - name: Print Managed Server log on startup failure
