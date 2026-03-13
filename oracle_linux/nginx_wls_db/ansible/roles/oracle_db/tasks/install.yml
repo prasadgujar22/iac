@@ -35,6 +35,8 @@
     -silent
     -responseFile {{ installer_stage }}/db_install.rsp
     -ignorePrereqFailure
+  environment:
+    CV_ASSUME_DISTID: OEL8.5
   become: true
   become_user: "{{ oracle_user }}"
   register: db_install_result
