@@ -15,6 +15,7 @@
       - bc
       - binutils
       - compat-openssl11
+      - gcc
       - elfutils-libelf
       - fontconfig
       - glibc
