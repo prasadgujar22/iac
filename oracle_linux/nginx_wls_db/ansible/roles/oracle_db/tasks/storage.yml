@@ -5,11 +5,15 @@
 # scsi2 (/dev/sdc) → /u01/fra
 # =============================================================================
 
-- name: Check if Oracle data disk already has a filesystem
-  ansible.builtin.command: blkid {{ oracle_data_disk }}
+- name: Check if Oracle data disk already has ext4 filesystem
+  ansible.builtin.command: blkid -t TYPE=ext4 {{ oracle_data_disk }}
   register: data_blkid
   changed_when: false
   failed_when: false
+
+- name: Wipe Oracle data disk signatures before formatting
+  ansible.builtin.command: wipefs -a {{ oracle_data_disk }}
+  when: data_blkid.rc != 0
 
 - name: Create ext4 filesystem on Oracle data disk
   community.general.filesystem:
@@ -18,11 +22,15 @@
     opts: -L ORADATA
   when: data_blkid.rc != 0
 
-- name: Check if FRA disk already has a filesystem
-  ansible.builtin.command: blkid {{ oracle_fra_disk }}
+- name: Check if FRA disk already has ext4 filesystem
+  ansible.builtin.command: blkid -t TYPE=ext4 {{ oracle_fra_disk }}
   register: fra_blkid
   changed_when: false
   failed_when: false
+
+- name: Wipe FRA disk signatures before formatting
+  ansible.builtin.command: wipefs -a {{ oracle_fra_disk }}
+  when: fra_blkid.rc != 0
 
 - name: Create ext4 filesystem on FRA disk
   community.general.filesystem:
