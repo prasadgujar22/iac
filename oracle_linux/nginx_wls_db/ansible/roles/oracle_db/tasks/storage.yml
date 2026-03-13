@@ -36,6 +36,8 @@
         echo "Unsupported filesystem type: $fstype" >&2; exit 1
         ;;
     esac
+    udevadm trigger --action=change "$dev"
+    udevadm settle
   register: data_disk_setup
   changed_when: "'already_labelled' not in data_disk_setup.stdout"
 
@@ -64,6 +66,8 @@
         echo "Unsupported filesystem type: $fstype" >&2; exit 1
         ;;
     esac
+    udevadm trigger --action=change "$dev"
+    udevadm settle
   register: fra_disk_setup
   changed_when: "'already_labelled' not in fra_disk_setup.stdout"
 
