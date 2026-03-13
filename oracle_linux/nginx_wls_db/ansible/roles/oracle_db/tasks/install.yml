@@ -21,10 +21,12 @@
     remote_src: true
     creates: "{{ oracle_home }}/runInstaller"
 
+# bin/oracle ships inside the 19c zip, so it exists right after unzip.
+# libclntshcore.so.19.1 is only created by a successful runInstaller.
 - name: Check if Oracle software is already installed
   ansible.builtin.stat:
-    path: "{{ oracle_home }}/bin/oracle"
-  register: oracle_bin
+    path: "{{ oracle_home }}/lib/libclntshcore.so.19.1"
+  register: oracle_installed
 
 - name: Patch ins_rdbms.mk for OL9/GCC11 linker compatibility
   ansible.builtin.replace:
@@ -33,7 +35,7 @@
     replace: '\1\2 -Wl,--no-as-needed'
   become: true
   become_user: "{{ oracle_user }}"
-  when: not oracle_bin.stat.exists
+  when: not oracle_installed.stat.exists
 
 - name: Reset Oracle inventory from previous failed install
   ansible.builtin.file:
@@ -45,7 +47,7 @@
   loop:
     - absent
     - directory
-  when: not oracle_bin.stat.exists
+  when: not oracle_installed.stat.exists
 
 - name: Deploy Oracle DB silent response file
   ansible.builtin.template:
@@ -70,16 +72,16 @@
     - db_install_result.rc not in [0, 6]
     - '"Successfully Setup Software" not in db_install_result.stdout'
   changed_when: '"Successfully Setup Software" in db_install_result.stdout'
-  when: not oracle_bin.stat.exists
+  when: not oracle_installed.stat.exists
 
 - name: Execute orainstRoot.sh (inventory registration)
   ansible.builtin.command: "{{ oracle_inventory }}/orainstRoot.sh"
   register: orainst_result
   changed_when: orainst_result.rc == 0
-  when: not oracle_bin.stat.exists
+  when: not oracle_installed.stat.exists
 
 - name: Execute root.sh (Oracle home root scripts)
   ansible.builtin.command: "{{ oracle_home }}/root.sh"
   register: root_result
   changed_when: root_result.rc == 0
-  when: not oracle_bin.stat.exists
+  when: not oracle_installed.stat.exists
