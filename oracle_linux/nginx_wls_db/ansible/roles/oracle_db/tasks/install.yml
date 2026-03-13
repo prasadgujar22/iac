@@ -68,6 +68,13 @@
   when: not oracle_installed.stat.exists
   changed_when: true
 
+# genclntsh (Oracle client library builder) references /usr/lib64/libpthread_nonshared.a
+# which was removed in glibc 2.34 (OL9). Create an empty static archive stub.
+- name: Create libpthread_nonshared.a stub for Oracle genclntsh on OL9
+  ansible.builtin.command: ar crs /usr/lib64/libpthread_nonshared.a
+  args:
+    creates: /usr/lib64/libpthread_nonshared.a
+
 - name: Reset Oracle inventory from previous failed install
   ansible.builtin.file:
     path: "{{ oracle_inventory }}"
