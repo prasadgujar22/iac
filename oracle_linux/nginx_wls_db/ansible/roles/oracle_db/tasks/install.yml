@@ -161,3 +161,10 @@
   register: _bin_chmod
   changed_when: "'fixed' in _bin_chmod.stdout"
   failed_when: false
+
+- name: Ensure oracle binary has SUID bit set for OS Auth
+  ansible.builtin.file:
+    path: "{{ oracle_home }}/bin/oracle"
+    mode: "6751"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"

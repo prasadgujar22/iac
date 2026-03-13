@@ -125,6 +125,15 @@
   when: not oracle_spfile.stat.exists
   failed_when: false
 
+- name: Ensure oracle binary has SUID bit set for OS Auth
+  ansible.builtin.file:
+    path: "{{ oracle_home }}/bin/oracle"
+    mode: "6751"
+    owner: "{{ oracle_user }}"
+    group: "dba"
+  become: true
+  when: not oracle_spfile.stat.exists
+
 - name: Run DBCA to create the database
   ansible.builtin.command: >
     {{ oracle_home }}/bin/dbca
