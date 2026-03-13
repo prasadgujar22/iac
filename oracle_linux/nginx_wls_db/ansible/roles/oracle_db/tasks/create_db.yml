@@ -164,15 +164,34 @@
       changed_when: '"Database creation complete" in dbca_result.stdout'
 
   rescue:
-    - name: Fetch DBCA log files
-      ansible.builtin.shell: "tail -n 200 {{ oracle_base }}/cfgtoollogs/dbca/{{ oracle_db_name }}/*.log"
-      register: dbca_logs
+    - name: Gather DBCA Diagnostics
+      ansible.builtin.shell: |
+        echo "=== /etc/oratab ==="
+        cat /etc/oratab || true
+        echo "=== /dev/shm ==="
+        df -h /dev/shm
+        echo "=== Processes ==="
+        ps -ef | grep pmon || true
+        echo "=== ORACLE_HOME/dbs ==="
+        ls -la {{ oracle_home }}/dbs || true
+        echo "=== SQLPlus connect test ==="
+        {{ oracle_home }}/bin/sqlplus -S / as sysdba <<< "select 'Connected successfully' as status from dual;" || echo "SQLPLUS FAILED"
+        echo "=== DBCA Logs ==="
+        find {{ oracle_base }}/cfgtoollogs {{ oracle_home }}/cfgtoollogs /tmp /var/tmp -maxdepth 4 -type f -name "*.log" -mmin -5 -exec echo "--- {} ---" \; -exec tail -n 100 {} \; 2>/dev/null || true
+      register: dbca_diags
       failed_when: false
       changed_when: false
+      become: true
+      become_user: "{{ oracle_user }}"
+      environment:
+        ORACLE_HOME: "{{ oracle_home }}"
+        ORACLE_SID: "{{ oracle_db_name }}"
+        PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
+        LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
 
-    - name: Display DBCA Logs
+    - name: Display DBCA Diagnostics
       ansible.builtin.debug:
-        msg: "{{ dbca_logs.stdout_lines }}"
+        msg: "{{ dbca_diags.stdout_lines }}"
 
     - name: Fail the playbook
       ansible.builtin.fail:
