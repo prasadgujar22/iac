@@ -134,6 +134,18 @@
   become: true
   when: not oracle_spfile.stat.exists
 
+- name: Validate that Oracle binary is functional (catch silent OL9 crashes)
+  ansible.builtin.shell: "{{ oracle_home }}/bin/oracle -help"
+  become: true
+  become_user: "{{ oracle_user }}"
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+  register: oracle_bin_check
+  failed_when:
+    - oracle_bin_check.rc != 0 or 'Usage' not in (oracle_bin_check.stdout ~ oracle_bin_check.stderr)
+  changed_when: false
+  when: not oracle_spfile.stat.exists
+
 - name: Run DBCA to create the database (with log diagnostics)
   when: not oracle_spfile.stat.exists
   block:

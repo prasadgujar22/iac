@@ -162,6 +162,21 @@
   changed_when: "'fixed' in _bin_chmod.stdout"
   failed_when: false
 
+- name: Relink Oracle binaries for Oracle Linux 9 compatibility
+  ansible.builtin.shell: |
+    export ORACLE_HOME="{{ oracle_home }}"
+    export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
+    export PATH=$ORACLE_HOME/bin:$PATH
+    cd $ORACLE_HOME/rdbms/lib
+    make -f ins_rdbms.mk ioracle
+    cd $ORACLE_HOME/sqlplus/lib
+    make -f ins_sqlplus.mk install
+  become: true
+  become_user: "{{ oracle_user }}"
+  when: not oracle_installed.stat.exists
+  register: relink_result
+  changed_when: true
+
 - name: Ensure oracle binary has SUID bit set for OS Auth
   ansible.builtin.file:
     path: "{{ oracle_home }}/bin/oracle"
