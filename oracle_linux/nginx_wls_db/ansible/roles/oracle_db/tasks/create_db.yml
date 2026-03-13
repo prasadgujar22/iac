@@ -16,6 +16,28 @@
     path: "{{ oracle_home }}/dbs/spfile{{ oracle_db_name }}.ora"
   register: oracle_spfile
 
+- name: Ensure DBCA templates directory exists
+  ansible.builtin.file:
+    path: "{{ oracle_home }}/assistants/dbca/templates"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0755"
+  when: not oracle_spfile.stat.exists
+
+- name: Create General_Purpose.dbc template stub for DBCA
+  ansible.builtin.copy:
+    dest: "{{ oracle_home }}/assistants/dbca/templates/General_Purpose.dbc"
+    content: |
+      <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <DatabaseTemplate name="General_Purpose" description="General Purpose" version="19.0.0.0.0">
+      </DatabaseTemplate>
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0644"
+    force: false
+  when: not oracle_spfile.stat.exists
+
 - name: Run DBCA to create the database
   ansible.builtin.command: >
     {{ oracle_home }}/bin/dbca
