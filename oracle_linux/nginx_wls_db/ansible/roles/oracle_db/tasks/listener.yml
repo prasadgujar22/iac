@@ -26,6 +26,7 @@
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
     PATH: "{{ oracle_home }}/bin:{{ ansible_env.PATH }}"
+    LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
   register: listener_start
   failed_when:
     - listener_start.rc != 0
