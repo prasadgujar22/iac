@@ -31,6 +31,14 @@
     opts: -L ORAFRA
   when: fra_blkid.rc != 0
 
+- name: Ensure ORADATA label is set on data disk
+  ansible.builtin.command: e2label {{ oracle_data_disk }} ORADATA
+  changed_when: false
+
+- name: Ensure ORAFRA label is set on FRA disk
+  ansible.builtin.command: e2label {{ oracle_fra_disk }} ORAFRA
+  changed_when: false
+
 - name: Create mount point directories
   ansible.builtin.file:
     path: "{{ item }}"
