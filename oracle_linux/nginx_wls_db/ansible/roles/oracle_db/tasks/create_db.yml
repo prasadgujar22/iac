@@ -96,6 +96,17 @@
   ansible.builtin.shell: |
     pkill -9 -u {{ oracle_user }} -f "ora_.*_{{ oracle_db_name }}" || true
     rm -f /dev/shm/*{{ oracle_db_name }}* 2>/dev/null || true
+    rm -rf "{{ oracle_base }}/admin/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/admin/{{ oracle_db_name | lower }}"
+    rm -rf "{{ oracle_base }}/audit/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/audit/{{ oracle_db_name | lower }}"
+    rm -rf "{{ oracle_base }}/cfgtoollogs/dbca/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/cfgtoollogs/dbca/{{ oracle_db_name | lower }}"
+    rm -rf "{{ oracle_base }}/diag/rdbms/{{ oracle_db_name | lower }}"
+    rm -rf "{{ oracle_base }}/oradata/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/oradata/{{ oracle_db_name | upper }}"
+    rm -rf "{{ oracle_base }}/fast_recovery_area/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/fast_recovery_area/{{ oracle_db_name | upper }}"
     rm -f "{{ oracle_home }}/dbs/init{{ oracle_db_name }}.ora"
     rm -f "{{ oracle_home }}/dbs/orapw{{ oracle_db_name }}"
     rm -f "{{ oracle_home }}/dbs/lk{{ oracle_db_name | upper }}"
@@ -109,7 +120,7 @@
 - name: Remove stale oratab entry if database was not fully created
   ansible.builtin.lineinfile:
     path: /etc/oratab
-    regexp: "^{{ oracle_db_name }}:"
+    regexp: "^(?i){{ oracle_db_name }}:"
     state: absent
   when: not oracle_spfile.stat.exists
   failed_when: false
