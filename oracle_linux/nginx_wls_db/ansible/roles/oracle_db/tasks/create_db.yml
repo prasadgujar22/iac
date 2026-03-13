@@ -16,6 +16,56 @@
     path: "{{ oracle_home }}/dbs/spfile{{ oracle_db_name }}.ora"
   register: oracle_spfile
 
+- name: Ensure Oracle inventory pointer file exists (/etc/oraInst.loc)
+  ansible.builtin.copy:
+    dest: /etc/oraInst.loc
+    content: |
+      inventory_loc={{ oracle_inventory }}
+      inst_group={{ oracle_group }}
+    mode: "0644"
+    force: false
+  when: not oracle_spfile.stat.exists
+
+- name: Ensure Oracle inventory ContentsXML directory exists
+  ansible.builtin.file:
+    path: "{{ oracle_inventory }}/ContentsXML"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0770"
+  when: not oracle_spfile.stat.exists
+
+- name: Ensure Oracle inventory.xml has registered home
+  ansible.builtin.copy:
+    dest: "{{ oracle_inventory }}/ContentsXML/inventory.xml"
+    content: |
+      <?xml version="1.0" standalone="yes" ?>
+      <INVENTORY>
+      <VERSION_INFO>
+         <SAVED_WITH>12.2.0.1.0</SAVED_WITH>
+         <MINIMUM_VER>2.1.0.6.0</MINIMUM_VER>
+      </VERSION_INFO>
+      <HOME_LIST>
+      <HOME NAME="OraDB19Home1" LOC="{{ oracle_home }}" TYPE="O" IDX="1"/>
+      </HOME_LIST>
+      <COMPOSITEHOME_LIST>
+      </COMPOSITEHOME_LIST>
+      </INVENTORY>
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0664"
+    force: false
+  when: not oracle_spfile.stat.exists
+
+- name: Ensure Oracle dbs directory exists
+  ansible.builtin.file:
+    path: "{{ oracle_home }}/dbs"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0755"
+  when: not oracle_spfile.stat.exists
+
 - name: Ensure DBCA templates directory exists
   ansible.builtin.file:
     path: "{{ oracle_home }}/assistants/dbca/templates"
