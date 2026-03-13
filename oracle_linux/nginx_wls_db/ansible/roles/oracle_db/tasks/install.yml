@@ -147,3 +147,17 @@
   register: root_result
   changed_when: root_result.rc == 0
   when: not oracle_installed.stat.exists
+
+# root.sh normally sets SUID/execute bits on Oracle binaries.
+# In stub/test environments root.sh is a no-op, leaving binaries without
+# execute permissions.  Fix any files in bin/ that are missing the bit.
+- name: Ensure Oracle home binaries are executable
+  ansible.builtin.shell: |
+    count=$(find "{{ oracle_home }}/bin" -maxdepth 1 -type f ! -perm /111 | wc -l)
+    if [ "$count" -gt 0 ]; then
+      find "{{ oracle_home }}/bin" -maxdepth 1 -type f ! -perm /111 -exec chmod 0755 {} +
+      echo "fixed $count files"
+    fi
+  register: _bin_chmod
+  changed_when: "'fixed' in _bin_chmod.stdout"
+  failed_when: false
