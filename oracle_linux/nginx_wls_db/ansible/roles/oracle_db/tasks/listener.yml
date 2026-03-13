@@ -20,7 +20,7 @@
     mode: "0644"
 
 - name: Start Oracle Listener
-  ansible.builtin.command: "{{ oracle_home }}/bin/lsnrctl start {{ listener_name }}"
+  ansible.builtin.shell: "{{ oracle_home }}/bin/lsnrctl start {{ listener_name }}"
   become: true
   become_user: "{{ oracle_user }}"
   environment:
