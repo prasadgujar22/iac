@@ -88,10 +88,22 @@
     force: false
   when: not oracle_spfile.stat.exists
 
-# If a previous DBCA run failed after the oratab entry was written, the
-# stub DBCA will find the entry on the next run, assume the database already
-# exists, try to connect, and fail with [DBT-05509].  Remove the stale entry
-# before running DBCA so it sees a clean slate.
+# Clean up all Oracle instance artifacts that DBCA inspects to decide whether
+# a database already exists.  If a previous DBCA run failed mid-flight it can
+# leave behind initSID.ora, orapwSID, lock-files, and IPC sockets; the next
+# DBCA invocation finds them, tries an OS-auth connection, and fails [DBT-05509].
+- name: Remove stale Oracle instance artifacts before database creation
+  ansible.builtin.shell: |
+    rm -f "{{ oracle_home }}/dbs/init{{ oracle_db_name }}.ora"
+    rm -f "{{ oracle_home }}/dbs/orapw{{ oracle_db_name }}"
+    rm -f "{{ oracle_home }}/dbs/lk{{ oracle_db_name | upper }}"
+    rm -f "{{ oracle_home }}/dbs/hc_{{ oracle_db_name }}.dat"
+    rm -f /var/tmp/.oracle/*{{ oracle_db_name }}* 2>/dev/null || true
+    rm -f /tmp/.oracle/*{{ oracle_db_name }}* 2>/dev/null || true
+  when: not oracle_spfile.stat.exists
+  changed_when: false
+  failed_when: false
+
 - name: Remove stale oratab entry if database was not fully created
   ansible.builtin.lineinfile:
     path: /etc/oratab
