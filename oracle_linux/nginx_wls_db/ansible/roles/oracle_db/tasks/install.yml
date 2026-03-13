@@ -28,7 +28,19 @@
     path: "{{ oracle_home }}/lib/libclntshcore.so.19.1"
   register: oracle_installed
 
-- name: Patch ins_rdbms.mk for OL9/GCC11 linker compatibility
+# Oracle 19.3 ins_rdbms.mk uses ORACLE_LINKLINE for shared library targets
+# (libasmclntsh19.ohso etc.) and RDBMS_LINK_OPTS for other targets.
+# Both need -Wl,--no-as-needed to work with binutils >= 2.35 (OL9).
+- name: Patch ins_rdbms.mk ORACLE_LINKLINE for OL9/GCC11 compatibility
+  ansible.builtin.replace:
+    path: "{{ oracle_home }}/rdbms/lib/ins_rdbms.mk"
+    regexp: '^(ORACLE_LINKLINE\s*=\s*)(.*)'
+    replace: '\1\2 -Wl,--no-as-needed'
+  become: true
+  become_user: "{{ oracle_user }}"
+  when: not oracle_installed.stat.exists
+
+- name: Patch ins_rdbms.mk RDBMS_LINK_OPTS for OL9/GCC11 compatibility
   ansible.builtin.replace:
     path: "{{ oracle_home }}/rdbms/lib/ins_rdbms.mk"
     regexp: '^(RDBMS_LINK_OPTS\s*=\s*)(.*)'
@@ -58,21 +70,45 @@
     mode: "0640"
 
 - name: Run Oracle DB software-only silent installation
-  ansible.builtin.command: >
-    {{ oracle_home }}/runInstaller
-    -silent
-    -responseFile {{ installer_stage }}/db_install.rsp
-    -ignorePrereqFailure
-  environment:
-    CV_ASSUME_DISTID: OEL8.5
-  become: true
-  become_user: "{{ oracle_user }}"
-  register: db_install_result
-  failed_when:
-    - db_install_result.rc not in [0, 6]
-    - '"Successfully Setup Software" not in db_install_result.stdout'
-  changed_when: '"Successfully Setup Software" in db_install_result.stdout'
   when: not oracle_installed.stat.exists
+  block:
+    - name: Execute runInstaller
+      ansible.builtin.command: >
+        {{ oracle_home }}/runInstaller
+        -silent
+        -responseFile {{ installer_stage }}/db_install.rsp
+        -ignorePrereqFailure
+      environment:
+        CV_ASSUME_DISTID: OEL8.5
+      become: true
+      become_user: "{{ oracle_user }}"
+      register: db_install_result
+      failed_when:
+        - db_install_result.rc not in [0, 6]
+        - '"Successfully Setup Software" not in db_install_result.stdout'
+      changed_when: '"Successfully Setup Software" in db_install_result.stdout'
+  rescue:
+    - name: Find Oracle install log
+      ansible.builtin.find:
+        paths: /tmp
+        patterns: "installActions*.log"
+        recurse: true
+        age: "-5m"
+      register: install_logs
+
+    - name: Show Oracle install log tail
+      ansible.builtin.command: "tail -150 {{ (install_logs.files | sort(attribute='mtime') | last).path }}"
+      register: log_tail
+      when: install_logs.matched > 0
+
+    - name: Display Oracle install log
+      ansible.builtin.debug:
+        msg: "{{ log_tail.stdout_lines }}"
+      when: install_logs.matched > 0
+
+    - name: Fail with install error
+      ansible.builtin.fail:
+        msg: "Oracle runInstaller failed (rc={{ db_install_result.rc }}). Log output shown above."
 
 - name: Execute orainstRoot.sh (inventory registration)
   ansible.builtin.command: "{{ oracle_inventory }}/orainstRoot.sh"
