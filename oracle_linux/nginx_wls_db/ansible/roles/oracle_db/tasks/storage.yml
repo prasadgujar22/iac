@@ -153,7 +153,7 @@
     path: "{{ oracle_fra_dir }}"
     src: tmpfs
     fstype: tmpfs
-    opts: "size={{ oracle_tmpfs_size | default('20g') }},mode=0755"
+    opts: "size={{ ((oracle_fra_size_mb | default(51200) | int) + 2048) }}m,mode=0755"
     state: mounted
   when: not _oracle_fra_disk_ok
 
@@ -199,10 +199,10 @@
 - name: Overlay tmpfs on oracle_fra_dir (filesystem has insufficient free space)
   ansible.builtin.command: >-
     mount -t tmpfs
-    -o size={{ oracle_tmpfs_size | default('20g') }},mode=0755
+    -o size={{ ((oracle_fra_size_mb | default(51200) | int) + 2048) }}m,mode=0755
     tmpfs {{ oracle_fra_dir }}
   when:
-    - (_fra_dir_avail.stdout | trim | int) < 5368709120
+    - (_fra_dir_avail.stdout | trim | int) < ((oracle_fra_size_mb | default(51200) | int) * 1048576)
     - _fra_tmpfs_active.stdout == "no"
   changed_when: true
 
