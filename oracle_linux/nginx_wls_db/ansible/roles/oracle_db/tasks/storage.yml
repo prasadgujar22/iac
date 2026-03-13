@@ -5,8 +5,9 @@
 # scsi2 (/dev/sdc) → oracle_fra_dir    (only if disk is ≥ 5 GiB)
 #
 # When a dedicated disk is smaller than 5 GiB (e.g. a CI test disk) the
-# labelling and mount steps are skipped; oracle_data_dir / oracle_fra_dir
-# are simply created as plain directories on the root filesystem instead.
+# labelling and real-disk mount steps are skipped.  Instead a tmpfs with
+# size=oracle_tmpfs_size (default 20g) is mounted so that Oracle tools see
+# adequate free space without consuming real disk blocks.
 #
 # Disk states handled (when disk is large enough):
 #   1. Fresh unpartitioned disk (no filesystem)     → wipefs + mkfs.xfs -L
@@ -116,6 +117,15 @@
     state: mounted
   when: _oracle_data_disk_ok
 
+- name: Mount tmpfs at oracle_data_dir (disk too small for Oracle)
+  ansible.posix.mount:
+    path: "{{ oracle_data_dir }}"
+    src: tmpfs
+    fstype: tmpfs
+    opts: "size={{ oracle_tmpfs_size | default('20g') }},mode=0755"
+    state: mounted
+  when: not _oracle_data_disk_ok
+
 - name: Mount FRA disk persistently
   ansible.posix.mount:
     path: "{{ oracle_fra_dir }}"
@@ -124,6 +134,15 @@
     opts: defaults,noatime
     state: mounted
   when: _oracle_fra_disk_ok
+
+- name: Mount tmpfs at oracle_fra_dir (disk too small for Oracle)
+  ansible.posix.mount:
+    path: "{{ oracle_fra_dir }}"
+    src: tmpfs
+    fstype: tmpfs
+    opts: "size={{ oracle_tmpfs_size | default('20g') }},mode=0755"
+    state: mounted
+  when: not _oracle_fra_disk_ok
 
 - name: Set ownership of mount points after mounting
   ansible.builtin.file:
