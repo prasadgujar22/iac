@@ -3,6 +3,20 @@
 # Configure and start Oracle Net Listener
 # =============================================================================
 
+# Deploy sqlnet.ora first so OS authentication is enabled when DBCA runs.
+# The Oracle home zip ships with SQLNET.AUTHENTICATION_SERVICES=(NONE) which
+# disables OS auth; that causes DBCA's internal connection check to fail with
+# [DBT-05509] ("OS Authentication might be disabled").
+- name: Deploy sqlnet.ora (enable OS authentication)
+  ansible.builtin.copy:
+    dest: "{{ oracle_home }}/network/admin/sqlnet.ora"
+    content: |
+      SQLNET.AUTHENTICATION_SERVICES = (ALL)
+      NAMES.DIRECTORY_PATH = (TNSNAMES, EZCONNECT)
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0644"
+
 - name: Deploy listener.ora
   ansible.builtin.template:
     src: listener.ora.j2
