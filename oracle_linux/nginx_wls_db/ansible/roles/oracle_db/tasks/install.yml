@@ -162,6 +162,16 @@
   changed_when: "'fixed' in _bin_chmod.stdout"
   failed_when: false
 
+- name: Check if oracle binary is functional
+  ansible.builtin.shell: "{{ oracle_home }}/bin/oracle -help"
+  become: true
+  become_user: "{{ oracle_user }}"
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+  register: oracle_bin_check
+  failed_when: false
+  changed_when: false
+
 - name: Relink Oracle binaries for Oracle Linux 9 compatibility
   ansible.builtin.shell: |
     export ORACLE_HOME="{{ oracle_home }}"
@@ -173,7 +183,7 @@
     make -f ins_sqlplus.mk install
   become: true
   become_user: "{{ oracle_user }}"
-  when: not oracle_installed.stat.exists
+  when: not oracle_installed.stat.exists or oracle_bin_check.rc != 0 or 'Usage' not in (oracle_bin_check.stdout ~ oracle_bin_check.stderr)
   register: relink_result
   changed_when: true
 
