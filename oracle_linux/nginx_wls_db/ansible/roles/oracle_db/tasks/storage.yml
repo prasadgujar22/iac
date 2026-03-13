@@ -5,22 +5,27 @@
 # scsi2 (/dev/sdc) → /u01/fra
 # =============================================================================
 
+# Detect the effective device: use partition (/dev/sdbN) if one exists,
+# otherwise use the raw disk directly.
+- name: Detect effective Oracle data disk device
+  ansible.builtin.shell: |
+    part="{{ oracle_data_disk }}1"
+    [ -b "$part" ] && echo "$part" || echo "{{ oracle_data_disk }}"
+  register: data_dev
+  changed_when: false
+
+- name: Detect effective FRA disk device
+  ansible.builtin.shell: |
+    part="{{ oracle_fra_disk }}1"
+    [ -b "$part" ] && echo "$part" || echo "{{ oracle_fra_disk }}"
+  register: fra_dev
+  changed_when: false
+
 - name: Check if ORADATA label exists on any device
   ansible.builtin.command: blkid -L ORADATA
   register: data_label_check
   changed_when: false
   failed_when: false
-
-- name: Wipe Oracle data disk signatures before formatting
-  ansible.builtin.command: wipefs -a {{ oracle_data_disk }}
-  when: data_label_check.rc != 0
-
-- name: Create ext4 filesystem on Oracle data disk
-  community.general.filesystem:
-    fstype: ext4
-    dev: "{{ oracle_data_disk }}"
-    opts: -L ORADATA
-  when: data_label_check.rc != 0
 
 - name: Check if ORAFRA label exists on any device
   ansible.builtin.command: blkid -L ORAFRA
@@ -28,16 +33,48 @@
   changed_when: false
   failed_when: false
 
-- name: Wipe FRA disk signatures before formatting
-  ansible.builtin.command: wipefs -a {{ oracle_fra_disk }}
-  when: fra_label_check.rc != 0
+# Path A: fresh unpartitioned disk — wipe any stale signatures then format
+- name: Wipe and format Oracle data disk (unpartitioned)
+  when:
+    - data_label_check.rc != 0
+    - data_dev.stdout == oracle_data_disk
+  block:
+    - name: Wipe Oracle data disk signatures
+      ansible.builtin.command: wipefs -a {{ oracle_data_disk }}
+    - name: Create ext4 filesystem on Oracle data disk
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ oracle_data_disk }}"
+        opts: -L ORADATA
 
-- name: Create ext4 filesystem on FRA disk
-  community.general.filesystem:
-    fstype: ext4
-    dev: "{{ oracle_fra_disk }}"
-    opts: -L ORAFRA
-  when: fra_label_check.rc != 0
+- name: Wipe and format FRA disk (unpartitioned)
+  when:
+    - fra_label_check.rc != 0
+    - fra_dev.stdout == oracle_fra_disk
+  block:
+    - name: Wipe FRA disk signatures
+      ansible.builtin.command: wipefs -a {{ oracle_fra_disk }}
+    - name: Create ext4 filesystem on FRA disk
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ oracle_fra_disk }}"
+        opts: -L ORAFRA
+
+# Path B: partition already exists with ext4 but no label — relabel it.
+# e2label is safe on mounted filesystems.
+- name: Apply ORADATA label to existing partition filesystem
+  ansible.builtin.command: e2label {{ data_dev.stdout }} ORADATA
+  when:
+    - data_label_check.rc != 0
+    - data_dev.stdout != oracle_data_disk
+  changed_when: true
+
+- name: Apply ORAFRA label to existing partition filesystem
+  ansible.builtin.command: e2label {{ fra_dev.stdout }} ORAFRA
+  when:
+    - fra_label_check.rc != 0
+    - fra_dev.stdout != oracle_fra_disk
+  changed_when: true
 
 - name: Create mount point directories
   ansible.builtin.file:
