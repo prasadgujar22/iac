@@ -21,6 +21,14 @@
     remote_src: true
     creates: "{{ oracle_home }}/runInstaller"
 
+- name: Patch ins_rdbms.mk for OL9/GCC11 linker compatibility
+  ansible.builtin.replace:
+    path: "{{ oracle_home }}/rdbms/lib/ins_rdbms.mk"
+    regexp: '^(RDBMS_LINK_OPTS\s*=\s*)(.*)'
+    replace: '\1\2 -Wl,--no-as-needed'
+  become: true
+  become_user: "{{ oracle_user }}"
+
 - name: Deploy Oracle DB silent response file
   ansible.builtin.template:
     src: db_install.rsp.j2
