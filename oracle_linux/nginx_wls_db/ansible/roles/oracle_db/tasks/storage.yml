@@ -1,15 +1,38 @@
 ---
 # =============================================================================
 # Prepare dedicated disks for Oracle datafiles and FRA
-# scsi1 (/dev/sdb) → /u01/oradata
-# scsi2 (/dev/sdc) → /u01/fra
+# scsi1 (/dev/sdb) → oracle_data_dir   (only if disk is ≥ 5 GiB)
+# scsi2 (/dev/sdc) → oracle_fra_dir    (only if disk is ≥ 5 GiB)
 #
-# Disk states handled:
+# When a dedicated disk is smaller than 5 GiB (e.g. a CI test disk) the
+# labelling and mount steps are skipped; oracle_data_dir / oracle_fra_dir
+# are simply created as plain directories on the root filesystem instead.
+#
+# Disk states handled (when disk is large enough):
 #   1. Fresh unpartitioned disk (no filesystem)     → wipefs + mkfs.xfs -L
 #   2. Partitioned disk, XFS, no label              → xfs_admin -L
 #   3. Partitioned disk, ext4, no label             → e2label
 #   4. Any disk already labelled correctly          → no-op
 # =============================================================================
+
+- name: Check Oracle data disk size
+  ansible.builtin.shell: |
+    lsblk -b -d -o SIZE --noheadings "{{ oracle_data_disk }}" 2>/dev/null | tr -d ' ' || echo 0
+  register: _data_disk_bytes
+  changed_when: false
+  failed_when: false
+
+- name: Check Oracle FRA disk size
+  ansible.builtin.shell: |
+    lsblk -b -d -o SIZE --noheadings "{{ oracle_fra_disk }}" 2>/dev/null | tr -d ' ' || echo 0
+  register: _fra_disk_bytes
+  changed_when: false
+  failed_when: false
+
+- name: Set disk-size facts
+  ansible.builtin.set_fact:
+    _oracle_data_disk_ok: "{{ (_data_disk_bytes.stdout | trim | int) >= 5368709120 }}"
+    _oracle_fra_disk_ok: "{{ (_fra_disk_bytes.stdout | trim | int) >= 5368709120 }}"
 
 - name: Ensure ORADATA label is set on Oracle data disk
   ansible.builtin.shell: |
@@ -40,6 +63,7 @@
     udevadm settle
   register: data_disk_setup
   changed_when: "'already_labelled' not in data_disk_setup.stdout"
+  when: _oracle_data_disk_ok
 
 - name: Ensure ORAFRA label is set on FRA disk
   ansible.builtin.shell: |
@@ -70,6 +94,7 @@
     udevadm settle
   register: fra_disk_setup
   changed_when: "'already_labelled' not in fra_disk_setup.stdout"
+  when: _oracle_fra_disk_ok
 
 - name: Create mount point directories
   ansible.builtin.file:
@@ -89,6 +114,7 @@
     fstype: auto
     opts: defaults,noatime
     state: mounted
+  when: _oracle_data_disk_ok
 
 - name: Mount FRA disk persistently
   ansible.posix.mount:
@@ -97,6 +123,7 @@
     fstype: auto
     opts: defaults,noatime
     state: mounted
+  when: _oracle_fra_disk_ok
 
 - name: Set ownership of mount points after mounting
   ansible.builtin.file:

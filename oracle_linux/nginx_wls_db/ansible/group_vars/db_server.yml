@@ -22,8 +22,8 @@ oracle_processes:      300
 # /dev/sdc → Fast Recovery Area
 oracle_data_disk:   /dev/sdb
 oracle_fra_disk:    /dev/sdc
-oracle_data_dir:    /u01/oradata
-oracle_fra_dir:     /u01/fra
+oracle_data_dir:    /u01/app/oracle/oradata
+oracle_fra_dir:     /u01/app/oracle/fra
 oracle_fra_size_mb: 51200          # 50 GB
 
 # --- Oracle Net listener ---
