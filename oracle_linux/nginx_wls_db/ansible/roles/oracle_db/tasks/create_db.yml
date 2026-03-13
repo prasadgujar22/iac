@@ -22,11 +22,15 @@
     -silent
     -createDatabase
     -responseFile {{ installer_stage }}/dbca.rsp
+    -ignorePrereqFailure
+    -J-Djava.security.egd=file:///dev/urandom
   become: true
   become_user: "{{ oracle_user }}"
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
     ORACLE_BASE: "{{ oracle_base }}"
+    ORACLE_HOSTNAME: "{{ ansible_hostname }}"
+    PATH: "{{ oracle_home }}/bin:{{ ansible_env.PATH }}"
     LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
     CV_ASSUME_DISTID: "OEL8.5"
   register: dbca_result

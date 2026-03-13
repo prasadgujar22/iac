@@ -13,11 +13,11 @@
 - import_tasks: install.yml
   tags: [db_install]
 
-- import_tasks: create_db.yml
-  tags: [db_create]
-
 - import_tasks: listener.yml
   tags: [db_listener]
+
+- import_tasks: create_db.yml
+  tags: [db_create]
 
 - import_tasks: app_schema.yml
   tags: [db_schema]
