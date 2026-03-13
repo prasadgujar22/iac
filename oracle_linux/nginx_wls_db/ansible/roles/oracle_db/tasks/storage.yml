@@ -5,47 +5,39 @@
 # scsi2 (/dev/sdc) → /u01/fra
 # =============================================================================
 
-- name: Check if Oracle data disk already has ext4 filesystem
-  ansible.builtin.command: blkid -t TYPE=ext4 {{ oracle_data_disk }}
-  register: data_blkid
+- name: Check if ORADATA label exists on any device
+  ansible.builtin.command: blkid -L ORADATA
+  register: data_label_check
   changed_when: false
   failed_when: false
 
 - name: Wipe Oracle data disk signatures before formatting
   ansible.builtin.command: wipefs -a {{ oracle_data_disk }}
-  when: data_blkid.rc != 0
+  when: data_label_check.rc != 0
 
 - name: Create ext4 filesystem on Oracle data disk
   community.general.filesystem:
     fstype: ext4
     dev: "{{ oracle_data_disk }}"
     opts: -L ORADATA
-  when: data_blkid.rc != 0
+  when: data_label_check.rc != 0
 
-- name: Check if FRA disk already has ext4 filesystem
-  ansible.builtin.command: blkid -t TYPE=ext4 {{ oracle_fra_disk }}
-  register: fra_blkid
+- name: Check if ORAFRA label exists on any device
+  ansible.builtin.command: blkid -L ORAFRA
+  register: fra_label_check
   changed_when: false
   failed_when: false
 
 - name: Wipe FRA disk signatures before formatting
   ansible.builtin.command: wipefs -a {{ oracle_fra_disk }}
-  when: fra_blkid.rc != 0
+  when: fra_label_check.rc != 0
 
 - name: Create ext4 filesystem on FRA disk
   community.general.filesystem:
     fstype: ext4
     dev: "{{ oracle_fra_disk }}"
     opts: -L ORAFRA
-  when: fra_blkid.rc != 0
-
-- name: Ensure ORADATA label is set on data disk
-  ansible.builtin.command: e2label {{ oracle_data_disk }} ORADATA
-  changed_when: false
-
-- name: Ensure ORAFRA label is set on FRA disk
-  ansible.builtin.command: e2label {{ oracle_fra_disk }} ORAFRA
-  changed_when: false
+  when: fra_label_check.rc != 0
 
 - name: Create mount point directories
   ansible.builtin.file:
