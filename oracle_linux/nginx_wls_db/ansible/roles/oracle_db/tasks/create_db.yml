@@ -11,6 +11,11 @@
     group: "{{ oracle_group }}"
     mode: "0640"
 
+- name: Check if database already exists
+  ansible.builtin.stat:
+    path: "{{ oracle_home }}/dbs/spfile{{ oracle_db_name }}.ora"
+  register: oracle_spfile
+
 - name: Run DBCA to create the database
   ansible.builtin.command: >
     {{ oracle_home }}/bin/dbca
@@ -22,11 +27,13 @@
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
     ORACLE_BASE: "{{ oracle_base }}"
+    LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
   register: dbca_result
   failed_when:
     - dbca_result.rc != 0
     - '"Database creation complete" not in dbca_result.stdout'
   changed_when: '"Database creation complete" in dbca_result.stdout'
+  when: not oracle_spfile.stat.exists
 
 - name: Enable Oracle DB autostart on boot
   ansible.builtin.lineinfile:
