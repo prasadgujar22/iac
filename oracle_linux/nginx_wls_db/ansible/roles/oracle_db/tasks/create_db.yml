@@ -28,6 +28,7 @@
     ORACLE_HOME: "{{ oracle_home }}"
     ORACLE_BASE: "{{ oracle_base }}"
     LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
+    CV_ASSUME_DISTID: "OEL8.5"
   register: dbca_result
   failed_when:
     - dbca_result.rc != 0
