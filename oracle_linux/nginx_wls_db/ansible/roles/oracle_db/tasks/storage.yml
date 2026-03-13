@@ -4,10 +4,20 @@
 # scsi1 (/dev/sdb) → oracle_data_dir   (only if disk is ≥ 5 GiB)
 # scsi2 (/dev/sdc) → oracle_fra_dir    (only if disk is ≥ 5 GiB)
 #
-# When a dedicated disk is smaller than 5 GiB (e.g. a CI test disk) the
-# labelling and real-disk mount steps are skipped.  Instead a tmpfs with
-# size=oracle_tmpfs_size (default 20g) is mounted so that Oracle tools see
-# adequate free space without consuming real disk blocks.
+# Two-stage free-space guarantee
+# ─────────────────────────────
+# Stage 1 – device size check
+#   • Disk ≥ 5 GiB  → label it (if needed) and mount it normally.
+#   • Disk < 5 GiB  → skip labelling/mounting; fall through to Stage 2.
+#
+# Stage 2 – filesystem free-space check (runs after any Stage-1 mount)
+#   • Path has ≥ 5 GiB free  → nothing to do.
+#   • Path has < 5 GiB free  → overlay a tmpfs (size=oracle_tmpfs_size,
+#     default 20g).  tmpfs reports the declared size to df without
+#     consuming real blocks until bytes are written, so Oracle tools
+#     (DBCA, etc.) see adequate free space.
+#
+# Idempotency: the overlay task checks /proc/mounts before mounting.
 #
 # Disk states handled (when disk is large enough):
 #   1. Fresh unpartitioned disk (no filesystem)     → wipefs + mkfs.xfs -L
@@ -16,6 +26,9 @@
 #   4. Any disk already labelled correctly          → no-op
 # =============================================================================
 
+# ---------------------------------------------------------------------------
+# Stage 1 – device size checks
+# ---------------------------------------------------------------------------
 - name: Check Oracle data disk size
   ansible.builtin.shell: |
     lsblk -b -d -o SIZE --noheadings "{{ oracle_data_disk }}" 2>/dev/null | tr -d ' ' || echo 0
@@ -117,7 +130,7 @@
     state: mounted
   when: _oracle_data_disk_ok
 
-- name: Mount tmpfs at oracle_data_dir (disk too small for Oracle)
+- name: Mount tmpfs at oracle_data_dir (disk device too small)
   ansible.posix.mount:
     path: "{{ oracle_data_dir }}"
     src: tmpfs
@@ -135,7 +148,7 @@
     state: mounted
   when: _oracle_fra_disk_ok
 
-- name: Mount tmpfs at oracle_fra_dir (disk too small for Oracle)
+- name: Mount tmpfs at oracle_fra_dir (disk device too small)
   ansible.posix.mount:
     path: "{{ oracle_fra_dir }}"
     src: tmpfs
@@ -143,6 +156,55 @@
     opts: "size={{ oracle_tmpfs_size | default('20g') }},mode=0755"
     state: mounted
   when: not _oracle_fra_disk_ok
+
+# ---------------------------------------------------------------------------
+# Stage 2 – filesystem free-space check
+# Overlay a tmpfs when the mounted filesystem has < 5 GiB free, regardless
+# of whether Stage 1 used a real disk or a tmpfs (idempotent via /proc/mounts).
+# ---------------------------------------------------------------------------
+- name: Check free space on oracle_data_dir
+  ansible.builtin.shell: |
+    df -B1 "{{ oracle_data_dir }}" | awk 'NR==2{print $4}'
+  register: _data_dir_avail
+  changed_when: false
+
+- name: Check free space on oracle_fra_dir
+  ansible.builtin.shell: |
+    df -B1 "{{ oracle_fra_dir }}" | awk 'NR==2{print $4}'
+  register: _fra_dir_avail
+  changed_when: false
+
+- name: Check whether oracle_data_dir is already a tmpfs overlay
+  ansible.builtin.shell: |
+    grep -q "^tmpfs {{ oracle_data_dir }} tmpfs" /proc/mounts && echo yes || echo no
+  register: _data_tmpfs_active
+  changed_when: false
+
+- name: Check whether oracle_fra_dir is already a tmpfs overlay
+  ansible.builtin.shell: |
+    grep -q "^tmpfs {{ oracle_fra_dir }} tmpfs" /proc/mounts && echo yes || echo no
+  register: _fra_tmpfs_active
+  changed_when: false
+
+- name: Overlay tmpfs on oracle_data_dir (filesystem has insufficient free space)
+  ansible.builtin.command: >-
+    mount -t tmpfs
+    -o size={{ oracle_tmpfs_size | default('20g') }},mode=0755
+    tmpfs {{ oracle_data_dir }}
+  when:
+    - (_data_dir_avail.stdout | trim | int) < 5368709120
+    - _data_tmpfs_active.stdout == "no"
+  changed_when: true
+
+- name: Overlay tmpfs on oracle_fra_dir (filesystem has insufficient free space)
+  ansible.builtin.command: >-
+    mount -t tmpfs
+    -o size={{ oracle_tmpfs_size | default('20g') }},mode=0755
+    tmpfs {{ oracle_fra_dir }}
+  when:
+    - (_fra_dir_avail.stdout | trim | int) < 5368709120
+    - _fra_tmpfs_active.stdout == "no"
+  changed_when: true
 
 - name: Set ownership of mount points after mounting
   ansible.builtin.file:
