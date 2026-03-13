@@ -49,6 +49,25 @@
   become_user: "{{ oracle_user }}"
   when: not oracle_installed.stat.exists
 
+# libasmperl19.so links against -lclntshcore and -lclntsh at build time.
+# On OL9 the stubs in $ORACLE_HOME/lib/stubs/ are absent or invalid for
+# the newer binutils, so the linker fails with "cannot find -lclntshcore".
+# Create valid empty ELF stub SOs so the ASM library build can proceed.
+- name: Create libclntshcore and libclntsh ELF stubs for ASM library build
+  ansible.builtin.shell: |
+    set -e
+    for lib in libclntshcore libclntsh; do
+      stub="{{ oracle_home }}/lib/stubs/${lib}.so"
+      if [ ! -s "$stub" ] || ! file "$stub" | grep -q ELF; then
+        printf 'void %s_stub(void) {}' "$lib" | \
+          gcc -x c -shared -fPIC -o "$stub" -
+      fi
+    done
+  become: true
+  become_user: "{{ oracle_user }}"
+  when: not oracle_installed.stat.exists
+  changed_when: true
+
 - name: Reset Oracle inventory from previous failed install
   ansible.builtin.file:
     path: "{{ oracle_inventory }}"
