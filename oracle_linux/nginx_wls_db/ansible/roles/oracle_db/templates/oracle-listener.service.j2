@@ -1,13 +1,12 @@
 [Unit]
-Description=Oracle Net Listener ({{ listener_name }})
+Description=Oracle Net Listener
 After=network.target
 
 [Service]
 Type=forking
 User={{ oracle_user }}
-Group={{ oracle_group }}
-Environment="ORACLE_HOME={{ oracle_home }}"
-Environment="PATH={{ oracle_home }}/bin:/usr/bin:/bin"
+Environment=ORACLE_HOME={{ oracle_home }}
+Environment=PATH={{ oracle_home }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 ExecStart={{ oracle_home }}/bin/lsnrctl start {{ listener_name }}
 ExecStop={{ oracle_home }}/bin/lsnrctl stop {{ listener_name }}
 TimeoutStartSec=120

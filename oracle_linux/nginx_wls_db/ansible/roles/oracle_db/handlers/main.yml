@@ -1,4 +1,3 @@
----
 - name: restart oracle db
   ansible.builtin.command: >
     {{ oracle_home }}/bin/dbshut {{ oracle_home }} &&

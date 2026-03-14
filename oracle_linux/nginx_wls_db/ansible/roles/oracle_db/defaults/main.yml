@@ -1,16 +1,18 @@
----
-# Oracle DB role defaults – overridden by group_vars/db_server.yml
-oracle_home:       /u01/app/oracle/product/19.0.0/dbhome_1
-oracle_base:       /u01/app/oracle
-oracle_inventory:  /u01/app/oraInventory
-oracle_user:       oracle
-oracle_group:      oinstall
-oracle_db_name:    WLSDB
-oracle_pdb_name:   WLSPDB
-listener_port:     1521
-oracle_db_zip:     LINUX.X64_193000_db_home.zip
-installer_stage:   /opt/oracle/stage
-oracle_data_dir:   /u01/oradata
-oracle_fra_dir:    /u01/fra
-oracle_data_disk:  /dev/sdb
-oracle_fra_disk:   /dev/sdc
+oracle_home: "/u01/app/oracle/product/19.0.0/dbhome_1"
+oracle_base: "/u01/app/oracle"
+oracle_inventory: "/u01/app/oraInventory"
+
+oracle_user: "oracle"
+oracle_group: "oinstall"
+
+oracle_db_name: "WLSDB"
+oracle_pdb_name: "WLSPDB"
+listener_port: 1521
+
+oracle_db_zip: "LINUX.X64_193000_db_home.zip"
+installer_stage: "/opt/oracle/stage"
+
+oracle_data_dir: "/u01/oradata"
+oracle_fra_dir: "/u01/fra"
+oracle_data_disk: "/dev/sdb"
+oracle_fra_disk: "/dev/sdc"
