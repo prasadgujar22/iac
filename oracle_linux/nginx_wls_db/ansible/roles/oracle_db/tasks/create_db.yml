@@ -171,10 +171,9 @@
       environment:
         ORACLE_HOME: "{{ oracle_home }}"
         ORACLE_BASE: "{{ oracle_base }}"
-        ORACLE_BASE_HOME: "{{ oracle_home }}"
-        ORACLE_BASE_CONFIG: "{{ oracle_base }}"
         ORACLE_SID: "{{ oracle_db_name }}"
         ORACLE_HOSTNAME: "{{ ansible_facts['hostname'] }}"
+        TNS_ADMIN: "{{ oracle_home }}/network/admin"
         PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
         LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
         CV_ASSUME_DISTID: "OEL8.5"

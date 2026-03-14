@@ -7,9 +7,29 @@
 # The Oracle home zip ships with SQLNET.AUTHENTICATION_SERVICES=(NONE) which
 # disables OS auth; that causes DBCA's internal connection check to fail with
 # [DBT-05509] ("OS Authentication might be disabled").
-- name: Deploy sqlnet.ora (enable OS authentication)
+# Deploy to both ORACLE_HOME and ORACLE_BASE network/admin paths because
+# Oracle 19c may resolve config from either location depending on environment.
+- name: Ensure oracle_base network/admin directory exists
+  ansible.builtin.file:
+    path: "{{ oracle_base }}/network/admin"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0755"
+
+- name: Deploy sqlnet.ora (enable OS authentication) to ORACLE_HOME
   ansible.builtin.copy:
     dest: "{{ oracle_home }}/network/admin/sqlnet.ora"
+    content: |
+      SQLNET.AUTHENTICATION_SERVICES = (ALL)
+      NAMES.DIRECTORY_PATH = (TNSNAMES, EZCONNECT)
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0644"
+
+- name: Deploy sqlnet.ora (enable OS authentication) to ORACLE_BASE
+  ansible.builtin.copy:
+    dest: "{{ oracle_base }}/network/admin/sqlnet.ora"
     content: |
       SQLNET.AUTHENTICATION_SERVICES = (ALL)
       NAMES.DIRECTORY_PATH = (TNSNAMES, EZCONNECT)
