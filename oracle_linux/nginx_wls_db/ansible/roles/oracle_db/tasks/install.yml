@@ -162,21 +162,34 @@
   changed_when: "'fixed' in _bin_chmod.stdout"
   failed_when: false
 
-# Validate that the oracle binary actually executes without crashing before
-# DBCA tries to start an instance.  On Oracle Linux 9 the real Oracle 19c
-# binary can segfault at startup due to missing library symbols; catching this
-# early produces a clear error rather than the cryptic [DBT-05509] from DBCA.
-#
-# NOTE: the oracle binary does NOT support a -help flag; it exits 0 with no
-# output when called with an unrecognised argument.  An empty stdout is normal
-# and is NOT a failure.  Only a non-zero exit code indicates a crash.
-- name: Validate that Oracle binary is functional (catch silent OL9 crashes)
-  ansible.builtin.command: "{{ oracle_home }}/bin/oracle -help"
+- name: Check if oracle binary is functional
+  ansible.builtin.shell: "{{ oracle_home }}/bin/oracle -help"
   become: true
   become_user: "{{ oracle_user }}"
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
-    LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
-  register: _oracle_binary_check
-  failed_when: _oracle_binary_check.rc not in [0]
+  register: oracle_bin_check
+  failed_when: false
   changed_when: false
+
+- name: Relink Oracle binaries for Oracle Linux 9 compatibility
+  ansible.builtin.shell: |
+    export ORACLE_HOME="{{ oracle_home }}"
+    export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
+    export PATH=$ORACLE_HOME/bin:$PATH
+    cd $ORACLE_HOME/rdbms/lib
+    make -f ins_rdbms.mk ioracle
+    cd $ORACLE_HOME/sqlplus/lib
+    make -f ins_sqlplus.mk install
+  become: true
+  become_user: "{{ oracle_user }}"
+  when: not oracle_installed.stat.exists or oracle_bin_check.rc != 0 or 'Usage' not in (oracle_bin_check.stdout ~ oracle_bin_check.stderr)
+  register: relink_result
+  changed_when: true
+
+- name: Ensure oracle binary has SUID bit set for OS Auth
+  ansible.builtin.file:
+    path: "{{ oracle_home }}/bin/oracle"
+    mode: "6751"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"

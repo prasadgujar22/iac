@@ -96,6 +96,19 @@
 # read-only home mode to use that path instead of oracle_home/dbs/.
 - name: Remove stale Oracle instance artifacts before database creation
   ansible.builtin.shell: |
+    pkill -9 -u {{ oracle_user }} -f "ora_.*_{{ oracle_db_name }}" || true
+    rm -f /dev/shm/*{{ oracle_db_name }}* 2>/dev/null || true
+    rm -rf "{{ oracle_base }}/admin/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/admin/{{ oracle_db_name | lower }}"
+    rm -rf "{{ oracle_base }}/audit/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/audit/{{ oracle_db_name | lower }}"
+    rm -rf "{{ oracle_base }}/cfgtoollogs/dbca/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/cfgtoollogs/dbca/{{ oracle_db_name | lower }}"
+    rm -rf "{{ oracle_base }}/diag/rdbms/{{ oracle_db_name | lower }}"
+    rm -rf "{{ oracle_base }}/oradata/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/oradata/{{ oracle_db_name | upper }}"
+    rm -rf "{{ oracle_base }}/fast_recovery_area/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/fast_recovery_area/{{ oracle_db_name | upper }}"
     rm -f "{{ oracle_home }}/dbs/init{{ oracle_db_name }}.ora"
     rm -f "{{ oracle_home }}/dbs/orapw{{ oracle_db_name }}"
     rm -f "{{ oracle_home }}/dbs/lk{{ oracle_db_name | upper }}"
@@ -116,37 +129,94 @@
 - name: Remove stale oratab entry if database was not fully created
   ansible.builtin.lineinfile:
     path: /etc/oratab
-    regexp: "^{{ oracle_db_name }}:"
+    regexp: "^(?i){{ oracle_db_name }}:"
     state: absent
   when: not oracle_spfile.stat.exists
   failed_when: false
 
-- name: Run DBCA to create the database
-  ansible.builtin.command: >
-    {{ oracle_home }}/bin/dbca
-    -silent
-    -createDatabase
-    -responseFile {{ installer_stage }}/dbca.rsp
-    -ignorePrereqFailure
-    -J-Djava.security.egd=file:///dev/urandom
+- name: Ensure oracle binary has SUID bit set for OS Auth
+  ansible.builtin.file:
+    path: "{{ oracle_home }}/bin/oracle"
+    mode: "6751"
+    owner: "{{ oracle_user }}"
+    group: "dba"
+  become: true
+  when: not oracle_spfile.stat.exists
+
+- name: Validate that Oracle binary is functional (catch silent OL9 crashes)
+  ansible.builtin.shell: "{{ oracle_home }}/bin/oracle -help"
   become: true
   become_user: "{{ oracle_user }}"
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
-    ORACLE_BASE: "{{ oracle_base }}"
-    ORACLE_BASE_HOME: "{{ oracle_home }}"
-    ORACLE_BASE_CONFIG: "{{ oracle_base }}"
-    ORACLE_SID: "{{ oracle_db_name }}"
-    ORACLE_HOSTNAME: "{{ ansible_hostname }}"
-    PATH: "{{ oracle_home }}/bin:{{ ansible_env.PATH }}"
-    LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
-    CV_ASSUME_DISTID: "OEL8.5"
-  register: dbca_result
+  register: oracle_bin_check
   failed_when:
-    - dbca_result.rc != 0
-    - '"Database creation complete" not in dbca_result.stdout'
-  changed_when: '"Database creation complete" in dbca_result.stdout'
+    - oracle_bin_check.rc != 0 or 'Usage' not in (oracle_bin_check.stdout ~ oracle_bin_check.stderr)
+  changed_when: false
   when: not oracle_spfile.stat.exists
+
+- name: Run DBCA to create the database (with log diagnostics)
+  when: not oracle_spfile.stat.exists
+  block:
+    - name: Run DBCA command
+      ansible.builtin.command: >
+        {{ oracle_home }}/bin/dbca
+        -silent
+        -createDatabase
+        -responseFile {{ installer_stage }}/dbca.rsp
+        -ignorePrereqFailure
+        -J-Djava.security.egd=file:///dev/urandom
+      become: true
+      become_user: "{{ oracle_user }}"
+      environment:
+        ORACLE_HOME: "{{ oracle_home }}"
+        ORACLE_BASE: "{{ oracle_base }}"
+        ORACLE_BASE_HOME: "{{ oracle_home }}"
+        ORACLE_BASE_CONFIG: "{{ oracle_base }}"
+        ORACLE_SID: "{{ oracle_db_name }}"
+        ORACLE_HOSTNAME: "{{ ansible_facts['hostname'] }}"
+        PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
+        LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
+        CV_ASSUME_DISTID: "OEL8.5"
+      register: dbca_result
+      failed_when:
+        - dbca_result.rc != 0
+        - '"Database creation complete" not in dbca_result.stdout'
+      changed_when: '"Database creation complete" in dbca_result.stdout'
+
+  rescue:
+    - name: Gather DBCA Diagnostics
+      ansible.builtin.shell: |
+        echo "=== /etc/oratab ==="
+        cat /etc/oratab || true
+        echo "=== /dev/shm ==="
+        df -h /dev/shm
+        echo "=== Processes ==="
+        ps -ef | grep pmon || true
+        echo "=== ORACLE_HOME/dbs ==="
+        ls -la {{ oracle_home }}/dbs || true
+        echo "=== SQLPlus connect test ==="
+        {{ oracle_home }}/bin/sqlplus -S / as sysdba <<< "select 'Connected successfully' as status from dual;" || echo "SQLPLUS FAILED"
+        echo "=== DBCA Logs ==="
+        find {{ oracle_base }}/cfgtoollogs {{ oracle_home }}/cfgtoollogs /tmp /var/tmp -maxdepth 4 -type f -name "*.log" -mmin -5 -exec echo "--- {} ---" \; -exec tail -n 100 {} \; 2>/dev/null || true
+      register: dbca_diags
+      failed_when: false
+      changed_when: false
+      become: true
+      become_user: "{{ oracle_user }}"
+      environment:
+        ORACLE_HOME: "{{ oracle_home }}"
+        ORACLE_SID: "{{ oracle_db_name }}"
+        PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
+        LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
+
+    - name: Display DBCA Diagnostics
+      ansible.builtin.debug:
+        msg: "{{ dbca_diags.stdout_lines }}"
+
+    - name: Fail the playbook
+      ansible.builtin.fail:
+        msg: "DBCA Failed. See logs above for the underlying ORA- error."
 
 - name: Enable Oracle DB autostart on boot
   ansible.builtin.lineinfile:
