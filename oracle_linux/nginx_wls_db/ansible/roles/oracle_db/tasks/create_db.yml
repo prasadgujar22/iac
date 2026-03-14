@@ -166,12 +166,19 @@
         -responseFile {{ installer_stage }}/dbca.rsp
         -ignorePrereqFailure
         -J-Djava.security.egd=file:///dev/urandom
+        -sysPassword {{ oracle_sys_password }}
+        -systemPassword {{ oracle_system_password }}
       become: true
       become_user: "{{ oracle_user }}"
       environment:
         ORACLE_HOME: "{{ oracle_home }}"
         ORACLE_BASE: "{{ oracle_base }}"
-        ORACLE_SID: "{{ oracle_db_name }}"
+        # ORACLE_SID intentionally omitted: if set, DBCA uses bequeath IPC for
+        # its "is DB already running?" check, which crashes (ORA-12547) because
+        # no instance is running. Without ORACLE_SID, DBCA falls back to a
+        # listener-based check that correctly returns "service not found" and
+        # proceeds with creation. Passwords are passed on CLI to force
+        # password-auth mode, bypassing the OS-auth bequeath pre-flight.
         ORACLE_HOSTNAME: "{{ ansible_facts['hostname'] }}"
         TNS_ADMIN: "{{ oracle_home }}/network/admin"
         PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -194,8 +201,12 @@
         ps -ef | grep pmon || true
         echo "=== ORACLE_HOME/dbs ==="
         ls -la {{ oracle_home }}/dbs || true
-        echo "=== SQLPlus connect test ==="
-        {{ oracle_home }}/bin/sqlplus -S / as sysdba <<< "select 'Connected successfully' as status from dual;" || echo "SQLPLUS FAILED"
+        echo "=== Oracle binary ldd ==="
+        ldd {{ oracle_home }}/bin/oracle 2>&1 | grep -i "not found" || echo "all libs found"
+        echo "=== SELinux status ==="
+        getenforce 2>/dev/null || echo "selinux not available"
+        echo "=== dbs directory ==="
+        ls -la {{ oracle_home }}/dbs/ || true
         echo "=== DBCA Logs ==="
         find {{ oracle_base }}/cfgtoollogs {{ oracle_home }}/cfgtoollogs /tmp /var/tmp -maxdepth 4 -type f -name "*.log" -mmin -5 -exec echo "--- {} ---" \; -exec tail -n 100 {} \; 2>/dev/null || true
       register: dbca_diags
