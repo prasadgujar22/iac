@@ -187,6 +187,20 @@
   register: relink_result
   changed_when: true
 
+# Register oracle_home/lib with the system dynamic linker so the oracle server
+# process can find its shared libraries without LD_LIBRARY_PATH being set.
+# This is critical on OL9: when DBCA forks oracle for its OS-auth pre-flight
+# check, LD_LIBRARY_PATH is not inherited, causing oracle to crash (ORA-12547).
+- name: Register Oracle home lib in system linker config
+  ansible.builtin.copy:
+    dest: /etc/ld.so.conf.d/oracle-19c.conf
+    content: "{{ oracle_home }}/lib\n"
+    mode: "0644"
+
+- name: Run ldconfig to update shared library cache
+  ansible.builtin.command: ldconfig
+  changed_when: true
+
 - name: Ensure oracle binary has SUID bit set for OS Auth
   ansible.builtin.file:
     path: "{{ oracle_home }}/bin/oracle"
