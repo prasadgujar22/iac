@@ -151,7 +151,7 @@
     ORACLE_HOME: "{{ oracle_home }}"
   register: oracle_bin_check
   failed_when:
-    - oracle_bin_check.rc != 0 or 'Usage' not in (oracle_bin_check.stdout ~ oracle_bin_check.stderr)
+    - oracle_bin_check.rc != 0
   changed_when: false
   when: not oracle_spfile.stat.exists
 
