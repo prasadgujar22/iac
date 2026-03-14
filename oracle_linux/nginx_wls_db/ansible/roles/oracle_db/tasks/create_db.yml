@@ -92,6 +92,8 @@
 # a database already exists.  If a previous DBCA run failed mid-flight it can
 # leave behind initSID.ora, orapwSID, lock-files, and IPC sockets; the next
 # DBCA invocation finds them, tries an OS-auth connection, and fails [DBT-05509].
+# oracle_base/dbs/ is also checked because ORACLE_BASE_CONFIG causes Oracle 19c
+# read-only home mode to use that path instead of oracle_home/dbs/.
 - name: Remove stale Oracle instance artifacts before database creation
   ansible.builtin.shell: |
     pkill -9 -u {{ oracle_user }} -f "ora_.*_{{ oracle_db_name }}" || true
@@ -111,6 +113,13 @@
     rm -f "{{ oracle_home }}/dbs/orapw{{ oracle_db_name }}"
     rm -f "{{ oracle_home }}/dbs/lk{{ oracle_db_name | upper }}"
     rm -f "{{ oracle_home }}/dbs/hc_{{ oracle_db_name }}.dat"
+    rm -f "{{ oracle_base }}/dbs/init{{ oracle_db_name }}.ora"
+    rm -f "{{ oracle_base }}/dbs/orapw{{ oracle_db_name }}"
+    rm -f "{{ oracle_base }}/dbs/lk{{ oracle_db_name | upper }}"
+    rm -f "{{ oracle_base }}/dbs/hc_{{ oracle_db_name }}.dat"
+    rm -rf "{{ oracle_base }}/admin/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/cfgtoollogs/dbca/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_base }}/diag/rdbms/{{ oracle_db_name | lower }}"
     rm -f /var/tmp/.oracle/*{{ oracle_db_name }}* 2>/dev/null || true
     rm -f /tmp/.oracle/*{{ oracle_db_name }}* 2>/dev/null || true
   when: not oracle_spfile.stat.exists
