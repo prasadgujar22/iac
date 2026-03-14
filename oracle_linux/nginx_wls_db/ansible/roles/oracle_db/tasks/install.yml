@@ -161,3 +161,22 @@
   register: _bin_chmod
   changed_when: "'fixed' in _bin_chmod.stdout"
   failed_when: false
+
+# Validate that the oracle binary actually executes without crashing before
+# DBCA tries to start an instance.  On Oracle Linux 9 the real Oracle 19c
+# binary can segfault at startup due to missing library symbols; catching this
+# early produces a clear error rather than the cryptic [DBT-05509] from DBCA.
+#
+# NOTE: the oracle binary does NOT support a -help flag; it exits 0 with no
+# output when called with an unrecognised argument.  An empty stdout is normal
+# and is NOT a failure.  Only a non-zero exit code indicates a crash.
+- name: Validate that Oracle binary is functional (catch silent OL9 crashes)
+  ansible.builtin.command: "{{ oracle_home }}/bin/oracle -help"
+  become: true
+  become_user: "{{ oracle_user }}"
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+    LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
+  register: _oracle_binary_check
+  failed_when: _oracle_binary_check.rc not in [0]
+  changed_when: false
