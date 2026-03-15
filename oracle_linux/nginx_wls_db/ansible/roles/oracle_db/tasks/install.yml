@@ -179,28 +179,53 @@
   ansible.builtin.copy:
     dest: "{{ oracle_home }}/rdbms/lib/stat_compat.c"
     content: |
-      /* stat_compat.c — provide stat/fstat/lstat symbols for Oracle 19c on OL9.
-       * Oracle pre-compiled .a files (libserver19.a etc.) reference these as
-       * direct external symbols; glibc 2.34+ libc_nonshared.a no longer ships
-       * them.  fstatat() is available on glibc 2.4+ / Linux 2.6.16+ and
-       * requires no deprecated __xstat ABI. */
-      #define _GNU_SOURCE
+      /* stat_compat.c — provide stat/fstat/lstat for Oracle 19c on OL9/x86-64.
+       * Oracle pre-compiled .a files (libserver19.a etc.) call stat/fstat/lstat
+       * as direct external symbols; glibc 2.34+ libc_nonshared.a no longer ships
+       * them.  This file uses raw Linux inline syscalls so it has ZERO external
+       * symbol references and needs no libc in the Oracle link. */
       #include <sys/stat.h>
       #include <fcntl.h>
+      /* x86-64 Linux syscall numbers */
+      #define SC_FSTAT       5
+      #define SC_NEWFSTATAT  262
+      static long __fstat_sc(int fd, struct stat *buf)
+      {
+          long ret;
+          __asm__ __volatile__(
+              "syscall"
+              : "=a"(ret)
+              : "0"((long)SC_FSTAT), "D"((long)fd), "S"(buf)
+              : "rdx", "rcx", "r11", "memory");
+          return ret;
+      }
+      static long __newfstatat_sc(int dfd, const char *path,
+                                   struct stat *buf, int flags)
+      {
+          long ret;
+          register long r10 __asm__("r10") = (long)flags;
+          __asm__ __volatile__(
+              "syscall"
+              : "=a"(ret)
+              : "0"((long)SC_NEWFSTATAT), "D"((long)dfd),
+                "S"(path), "d"(buf), "r"(r10)
+              : "rcx", "r11", "memory");
+          return ret;
+      }
       int stat(const char *p, struct stat *b)
-          { return fstatat(AT_FDCWD, p, b, 0); }
+          { return (int)__newfstatat_sc(AT_FDCWD, p, b, 0); }
       int fstat(int f, struct stat *b)
-          { return fstatat(f, "", b, AT_EMPTY_PATH); }
+          { return (int)__fstat_sc(f, b); }
       int lstat(const char *p, struct stat *b)
-          { return fstatat(AT_FDCWD, p, b, AT_SYMLINK_NOFOLLOW); }
+          { return (int)__newfstatat_sc(AT_FDCWD, p, b, AT_SYMLINK_NOFOLLOW); }
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: "0644"
 
 - name: Compile stat/fstat compatibility object for Oracle 19c OL9 relinking
+  # No 'creates:' — always recompile so a stale .o from a previous run is replaced.
   ansible.builtin.command:
     cmd: "gcc -O2 -c {{ oracle_home }}/rdbms/lib/stat_compat.c -o {{ oracle_home }}/rdbms/lib/stat_compat.o"
-    creates: "{{ oracle_home }}/rdbms/lib/stat_compat.o"
   changed_when: true
 
 # Oracle 19c ships bin/oracle as a 0-byte placeholder in the ZIP.  A shell
@@ -225,11 +250,6 @@
       export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
       export PATH=$ORACLE_HOME/bin:$PATH
       ar -r $ORACLE_HOME/lib/libserver19.a $ORACLE_HOME/rdbms/lib/stat_compat.o
-      # orald calls /usr/bin/ld directly (not gcc), so libc.so.6 is never auto-included.
-      # fstatat (called by stat_compat.o) lives in libc.so.6; add -lc to sysliblist
-      # so the linker resolves it.
-      grep -qw -- '-lc' $ORACLE_HOME/lib/sysliblist || \
-          sed -i 's/^/-lc /' $ORACLE_HOME/lib/sysliblist
       cd $ORACLE_HOME/rdbms/lib
       rm -f $ORACLE_HOME/bin/oracle
       make -f ins_rdbms.mk ioracle
