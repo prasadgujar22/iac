@@ -201,9 +201,16 @@
   ansible.builtin.command: ldconfig
   changed_when: true
 
-- name: Ensure oracle binary has SUID bit set for OS Auth
+# Container environments (Docker/Podman) commonly set PR_SET_NO_NEW_PRIVS=1
+# (NoNewPrivs) or mount the rootfs with nosuid, which silently strips SUID
+# when exec()ing an SUID binary.  Oracle's bequeath (local IPC) connection
+# forks+execs the oracle binary; if the exec gets the wrong effective UID the
+# bequeath fd handshake (ORA_NET2_DESC) fails → ORA-12547 → DBT-05509.
+# Since every Ansible task that needs oracle runs as oracle (become_user),
+# SUID is not required: the binary already runs as the correct user.
+- name: Ensure oracle binary is executable (no SUID needed when running as oracle)
   ansible.builtin.file:
     path: "{{ oracle_home }}/bin/oracle"
-    mode: "6751"
+    mode: "0751"
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
