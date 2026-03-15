@@ -189,15 +189,23 @@
   when: not oracle_spfile.stat.exists
   block:
     - name: Run DBCA command
-      ansible.builtin.command: >
-        {{ oracle_home }}/bin/dbca
-        -silent
-        -createDatabase
-        -responseFile {{ installer_stage }}/dbca.rsp
-        -ignorePrereqFailure
-        -J-Djava.security.egd=file:///dev/urandom
-        -sysPassword {{ oracle_sys_password }}
-        -systemPassword {{ oracle_system_password }}
+      ansible.builtin.shell:
+        # Raise open-file limit to 65536 before launching DBCA — the
+        # New_Database.dbt template installs catalog/catproc SQL scripts
+        # which open hundreds of files; the default PAM soft limit (1024)
+        # is too low and causes catalog.sql to hang or fail.
+        # timeout 2700 (45 min) prevents an indefinite hang if DBCA waits
+        # for a listener that isn't running yet.
+        cmd: |
+          ulimit -n 65536
+          timeout 2700 {{ oracle_home }}/bin/dbca \
+            -silent \
+            -createDatabase \
+            -responseFile {{ installer_stage }}/dbca.rsp \
+            -ignorePrereqFailure \
+            '-J-Djava.security.egd=file:///dev/urandom' \
+            -sysPassword '{{ oracle_sys_password }}' \
+            -systemPassword '{{ oracle_system_password }}'
       become: true
       become_user: "{{ oracle_user }}"
       environment:
