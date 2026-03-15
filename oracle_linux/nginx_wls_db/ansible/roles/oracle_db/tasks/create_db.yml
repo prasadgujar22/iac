@@ -257,6 +257,25 @@
         echo "=== sqlplus bequeath probe with raised ulimits ==="
         ( ulimit -n 65536; ulimit -u unlimited; ulimit -s unlimited
           echo 'exit' | {{ oracle_home }}/bin/sqlplus -s / as sysdba 2>&1 | head -5 ) || true
+        echo "=== oracle standalone proper exit code ==="
+        timeout 2 {{ oracle_home }}/bin/oracle > /tmp/ora_sa.txt 2>&1
+        echo "standalone exit: $? (124=hung/OK; 139=SIGSEGV; 0=clean)"
+        head -2 /tmp/ora_sa.txt 2>/dev/null || true; rm -f /tmp/ora_sa.txt
+        echo "=== ldcache for oracle libs ==="
+        ldconfig -p 2>/dev/null | grep -E "libclntsh|libnnz" | head -5 || echo "not in ldcache"
+        echo "=== oracle bequeath env wrapper (what env does OCI pass to oracle?) ==="
+        if mv {{ oracle_home }}/bin/oracle {{ oracle_home }}/bin/oracle.real 2>/dev/null; then
+          printf '#!/bin/bash\n{ echo ORACLE_HOME=$ORACLE_HOME; echo ORACLE_SID=$ORACLE_SID; echo ORACLE_BASE=$ORACLE_BASE; echo MALLOC_ARENA_MAX=$MALLOC_ARENA_MAX; echo LD_LIBRARY_PATH=$LD_LIBRARY_PATH; echo "=== FDs ==="; ls -la /proc/$$/fd 2>&1; echo "=== ENV ==="; env | sort; } > /tmp/ora_wrap.log 2>&1\nexec %s "$@"\n' '{{ oracle_home }}/bin/oracle.real' > {{ oracle_home }}/bin/oracle
+          chmod 755 {{ oracle_home }}/bin/oracle
+          rm -f /tmp/ora_wrap.log
+          echo 'exit' | {{ oracle_home }}/bin/sqlplus -s / as sysdba 2>&1 | head -3 || true
+          echo "--- wrapper log ---"
+          cat /tmp/ora_wrap.log 2>/dev/null || echo "(log not created: wrapper not called or write failed)"
+          mv {{ oracle_home }}/bin/oracle.real {{ oracle_home }}/bin/oracle
+          rm -f /tmp/ora_wrap.log
+        else
+          echo "could not rename oracle binary (in use or permission denied)"
+        fi
         echo "=== DBCA Logs ==="
         find {{ oracle_base }}/cfgtoollogs {{ oracle_home }}/cfgtoollogs /tmp /var/tmp -maxdepth 5 -type f -name "*.log" -mmin -10 -exec echo "--- {} ---" \; -exec tail -n 100 {} \; 2>/dev/null || true
         echo "=== Oracle trace files ==="
