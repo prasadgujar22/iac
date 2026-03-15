@@ -166,6 +166,7 @@
         -createDatabase
         -responseFile {{ installer_stage }}/dbca.rsp
         -ignorePrereqFailure
+        -forceCleanup
         -J-Djava.security.egd=file:///dev/urandom
         -sysPassword {{ oracle_sys_password }}
         -systemPassword {{ oracle_system_password }}
@@ -212,8 +213,14 @@
         getenforce 2>/dev/null || echo "selinux not available"
         echo "=== dbs directory ==="
         ls -la {{ oracle_home }}/dbs/ || true
+        echo "=== sqlnet.ora ==="
+        cat {{ oracle_home }}/network/admin/sqlnet.ora 2>/dev/null || echo "not found"
+        echo "=== sqlplus bequeath probe (expect ORA-01078 if no instance) ==="
+        echo 'exit' | {{ oracle_home }}/bin/sqlplus -s / as sysdba 2>&1 | head -5 || true
         echo "=== DBCA Logs ==="
-        find {{ oracle_base }}/cfgtoollogs {{ oracle_home }}/cfgtoollogs /tmp /var/tmp -maxdepth 4 -type f -name "*.log" -mmin -5 -exec echo "--- {} ---" \; -exec tail -n 100 {} \; 2>/dev/null || true
+        find {{ oracle_base }}/cfgtoollogs {{ oracle_home }}/cfgtoollogs /tmp /var/tmp -maxdepth 5 -type f -name "*.log" -mmin -10 -exec echo "--- {} ---" \; -exec tail -n 100 {} \; 2>/dev/null || true
+        echo "=== Oracle trace files ==="
+        find {{ oracle_base }}/diag -maxdepth 5 -type f -name "*.trc" -mmin -10 -exec echo "--- {} ---" \; -exec tail -n 30 {} \; 2>/dev/null || true
       register: dbca_diags
       failed_when: false
       changed_when: false
