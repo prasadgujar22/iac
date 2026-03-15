@@ -20,7 +20,7 @@
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
     ORACLE_SID:  "{{ oracle_db_name }}"
-    PATH: "{{ oracle_home }}/bin:{{ ansible_env.PATH }}"
+    PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
   register: schema_result
   changed_when: '"User created" in schema_result.stdout'
   failed_when:

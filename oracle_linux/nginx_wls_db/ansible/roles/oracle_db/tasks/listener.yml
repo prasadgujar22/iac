@@ -59,7 +59,7 @@
   become_user: "{{ oracle_user }}"
   environment:
     ORACLE_HOME: "{{ oracle_home }}"
-    PATH: "{{ oracle_home }}/bin:{{ ansible_env.PATH }}"
+    PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
     LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
   register: listener_start
   failed_when:
