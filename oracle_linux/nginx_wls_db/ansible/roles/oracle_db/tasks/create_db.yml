@@ -96,7 +96,13 @@
 # read-only home mode to use that path instead of oracle_home/dbs/.
 - name: Remove stale Oracle instance artifacts before database creation
   ansible.builtin.shell: |
-    pkill -9 -u {{ oracle_user }} -f "ora_.*_{{ oracle_db_name }}" || true
+    # Kill ALL oracle processes for this SID: background procs (ora_pmon_WLSDB etc)
+    # AND oracle server processes from bequeath connections (process name includes SID).
+    # The previous run may have left a full 2.4 GB SGA with nattch=9; we must kill
+    # everything so the SHM segments drop to nattch=0 before ipcrm runs below.
+    pkill -9 -u {{ oracle_user }} -f "{{ oracle_db_name }}" || true
+    pkill -9 -u {{ oracle_user }} -f "ora_" || true
+    sleep 5
     rm -f /dev/shm/*{{ oracle_db_name }}* 2>/dev/null || true
     rm -rf "{{ oracle_base }}/admin/{{ oracle_db_name }}"
     rm -rf "{{ oracle_base }}/admin/{{ oracle_db_name | lower }}"
@@ -154,6 +160,22 @@
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: "0640"
+  when: not oracle_spfile.stat.exists
+
+# DBCA pre-flight connects via bequeath to check whether the DB exists.
+# Oracle 19c attempts to write an audit record on each SYSDBA connect.
+# If audit_trail=OS (or unified auditing writes to adump), oracle raises
+# ORA-09925 "Unable to create audit trail file" when adump is missing,
+# which causes DBCA to map the connect failure to DBT-05509 and abort.
+# The cleanup task above deletes oracle_base/admin/WLSDB entirely; we
+# must recreate adump here so the bequeath pre-flight can proceed.
+- name: Create Oracle audit directory (prevents ORA-09925 on bequeath pre-flight)
+  ansible.builtin.file:
+    path: "{{ oracle_base }}/admin/{{ oracle_db_name }}/adump"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0750"
   when: not oracle_spfile.stat.exists
 
 # Ensure oracle binary does NOT have SUID/SGID set.  Container runtimes with
