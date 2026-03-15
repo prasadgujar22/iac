@@ -363,6 +363,10 @@
     path: /etc/oratab
     regexp: "^{{ oracle_db_name }}:"
     line: "{{ oracle_db_name }}:{{ oracle_home }}:Y"
+    create: true
+    owner: oracle
+    group: oinstall
+    mode: "0644"
   notify: restart oracle db
 
 - name: Deploy oracle systemd service
