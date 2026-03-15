@@ -135,6 +135,21 @@
   when: not oracle_spfile.stat.exists
   failed_when: false
 
+# Oracle 19c on OL9: without an init file, oracle exits with ORA-01078 BEFORE
+# completing the TNS handshake, so the bequeath client sees ORA-12547 instead.
+# DBCA maps any bequeath ORA-12547 → DBT-05509 and aborts.  Providing a
+# minimal init file lets oracle reach NOMOUNT and complete the handshake;
+# DBCA then sees "instance in NOMOUNT state → no database yet → proceed with
+# creation".  DBCA overwrites this stub with a real spfile during creation.
+- name: Create minimal init file so oracle can complete bequeath TNS handshake
+  ansible.builtin.copy:
+    dest: "{{ oracle_home }}/dbs/init{{ oracle_db_name }}.ora"
+    content: "db_name={{ oracle_db_name }}\n"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0640"
+  when: not oracle_spfile.stat.exists
+
 - name: Ensure oracle binary has SUID bit set for OS Auth
   ansible.builtin.file:
     path: "{{ oracle_home }}/bin/oracle"
