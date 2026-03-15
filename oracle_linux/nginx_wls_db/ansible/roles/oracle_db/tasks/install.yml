@@ -279,6 +279,8 @@
       make -f ins_rdbms.mk ioracle
       cd $ORACLE_HOME/sqlplus/lib
       make -f ins_sqlplus.mk install
+      cd $ORACLE_HOME/network/lib
+      make -f ins_net_client.mk install
   become: true
   become_user: "{{ oracle_user }}"
   when: not oracle_installed.stat.exists or oracle_bin_check.rc != 0 or (oracle_binary_removed.changed | default(false))
