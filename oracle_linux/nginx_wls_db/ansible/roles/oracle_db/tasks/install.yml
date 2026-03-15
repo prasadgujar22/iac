@@ -162,6 +162,54 @@
   changed_when: "'fixed' in _bin_chmod.stdout"
   failed_when: false
 
+# Oracle 19c (19.3) pre-compiled .a archives (libserver19.a, libjavavm19.a,
+# libnnzst19.a) call stat() and fstat() as direct external symbols.  They were
+# compiled on OEL7 (glibc 2.17) where those symbols lived in libc_nonshared.a
+# as thin wrappers around __xstat()/__fxstat().  On OL9 (glibc 2.34),
+# libc_nonshared.a no longer ships stat/fstat — they became real versioned
+# functions in libc.so.6 (stat@GLIBC_2.33, fstat@GLIBC_2.33).  Oracle's orald
+# link does not pull in any static library that provides the plain "stat" /
+# "fstat" symbols, so the linker fails with "undefined reference to stat".
+#
+# Fix: compile a thin wrapper object that defines stat/fstat/lstat via the
+# POSIX fstatat() call (available on any modern kernel + glibc) and splice it
+# into ins_rdbms.mk's ORACLE_LINKLINE so the linker finds the symbols.  GNU ld
+# includes all symbols from .o files regardless of position in the link command,
+# so appending after -Wl,--no-as-needed is safe and order-independent.
+- name: Create stat/fstat compatibility source for Oracle 19c OL9 relinking
+  ansible.builtin.copy:
+    dest: "{{ oracle_home }}/rdbms/lib/stat_compat.c"
+    content: |
+      /* stat_compat.c — provide stat/fstat/lstat symbols for Oracle 19c on OL9.
+       * Oracle pre-compiled .a files (libserver19.a etc.) reference these as
+       * direct external symbols; glibc 2.34+ libc_nonshared.a no longer ships
+       * them.  fstatat() is available on glibc 2.4+ / Linux 2.6.16+ and
+       * requires no deprecated __xstat ABI. */
+      #define _GNU_SOURCE
+      #include <sys/stat.h>
+      #include <fcntl.h>
+      int stat(const char *p, struct stat *b)
+          { return fstatat(AT_FDCWD, p, b, 0); }
+      int fstat(int f, struct stat *b)
+          { return fstatat(f, "", b, AT_EMPTY_PATH); }
+      int lstat(const char *p, struct stat *b)
+          { return fstatat(AT_FDCWD, p, b, AT_SYMLINK_NOFOLLOW); }
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "0644"
+
+- name: Compile stat/fstat compatibility object for Oracle 19c OL9 relinking
+  ansible.builtin.command:
+    cmd: "gcc -O2 -c {{ oracle_home }}/rdbms/lib/stat_compat.c -o {{ oracle_home }}/rdbms/lib/stat_compat.o"
+    creates: "{{ oracle_home }}/rdbms/lib/stat_compat.o"
+  changed_when: true
+
+- name: Patch ins_rdbms.mk ORACLE_LINKLINE to splice in stat_compat.o
+  ansible.builtin.replace:
+    path: "{{ oracle_home }}/rdbms/lib/ins_rdbms.mk"
+    regexp: '^(ORACLE_LINKLINE\s*=\s*)(.* -Wl,--no-as-needed)$'
+    replace: '\1\2 $(ORACLE_HOME)/rdbms/lib/stat_compat.o'
+
 # Oracle 19c ships bin/oracle as a 0-byte placeholder in the ZIP.  A shell
 # command like "oracle -help" always returns rc=0 on a 0-byte file because bash
 # falls back to treating a non-ELF executable as a shell script (empty → exits
