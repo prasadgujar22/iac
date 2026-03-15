@@ -115,6 +115,12 @@
     rm -rf "{{ oracle_base }}/oradata/{{ oracle_db_name | upper }}"
     rm -rf "{{ oracle_base }}/fast_recovery_area/{{ oracle_db_name }}"
     rm -rf "{{ oracle_base }}/fast_recovery_area/{{ oracle_db_name | upper }}"
+    # oracle_fra_dir may be a separate tmpfs/mount (not under oracle_base); delete explicitly
+    rm -rf "{{ oracle_fra_dir }}/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_fra_dir }}/{{ oracle_db_name | upper }}"
+    # oracle_data_dir likewise may be a separate mount; delete SID subdir explicitly
+    rm -rf "{{ oracle_data_dir }}/{{ oracle_db_name }}"
+    rm -rf "{{ oracle_data_dir }}/{{ oracle_db_name | upper }}"
     rm -f "{{ oracle_home }}/dbs/init{{ oracle_db_name }}.ora"
     rm -f "{{ oracle_home }}/dbs/orapw{{ oracle_db_name }}"
     rm -f "{{ oracle_home }}/dbs/lk{{ oracle_db_name | upper }}"
