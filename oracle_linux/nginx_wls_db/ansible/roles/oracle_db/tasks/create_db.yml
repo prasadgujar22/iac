@@ -156,10 +156,15 @@
     mode: "0640"
   when: not oracle_spfile.stat.exists
 
-- name: Ensure oracle binary has SUID bit set for OS Auth
+# Ensure oracle binary does NOT have SUID/SGID set.  Container runtimes with
+# NoNewPrivs (--security-opt=no-new-privileges) or nosuid mounts silently
+# strip setuid bits at exec() time; the resulting effective-UID mismatch
+# corrupts oracle's bequeath fd setup → ORA-12547 / DBT-05509.
+# We always invoke oracle as oracle (become_user), so SUID is unnecessary.
+- name: Ensure oracle binary is executable without SUID (NoNewPrivs-safe)
   ansible.builtin.file:
     path: "{{ oracle_home }}/bin/oracle"
-    mode: "6751"
+    mode: "0751"
     owner: "{{ oracle_user }}"
     group: "dba"
   become: true
@@ -195,12 +200,12 @@
       environment:
         ORACLE_HOME: "{{ oracle_home }}"
         ORACLE_BASE: "{{ oracle_base }}"
-        # ORACLE_SID intentionally omitted: if set, DBCA uses bequeath IPC for
-        # its "is DB already running?" check, which crashes (ORA-12547) because
-        # no instance is running. Without ORACLE_SID, DBCA falls back to a
-        # listener-based check that correctly returns "service not found" and
-        # proceeds with creation. Passwords are passed on CLI to force
-        # password-auth mode, bypassing the OS-auth bequeath pre-flight.
+        # ORACLE_SID is set so DBCA knows which instance to bequeath-connect to
+        # for its "DB already exists?" pre-flight check.  With the SUID bit
+        # removed (NoNewPrivs-safe), bequeath works correctly: oracle starts to
+        # NOMOUNT using the stub init file, DBCA sees the instance in NOMOUNT
+        # state (= no existing DB), and proceeds with creation.
+        ORACLE_SID: "{{ oracle_db_name }}"
         ORACLE_HOSTNAME: "{{ ansible_facts['hostname'] }}"
         TNS_ADMIN: "{{ oracle_home }}/network/admin"
         PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -219,6 +224,11 @@
   rescue:
     - name: Gather DBCA Diagnostics
       ansible.builtin.shell: |
+        echo "=== Container security (NoNewPrivs / Seccomp / nosuid) ==="
+        grep -E "NoNewPriv|Seccomp" /proc/self/status 2>/dev/null || echo "not available"
+        mount 2>/dev/null | grep -E "nosuid|noexec" | head -5 || true
+        echo "=== oracle binary mode ==="
+        ls -la {{ oracle_home }}/bin/oracle
         echo "=== /etc/oratab ==="
         cat /etc/oratab || true
         echo "=== /dev/shm ==="
@@ -263,19 +273,8 @@
         head -2 /tmp/ora_sa.txt 2>/dev/null || true; rm -f /tmp/ora_sa.txt
         echo "=== ldcache for oracle libs ==="
         ldconfig -p 2>/dev/null | grep -E "libclntsh|libnnz" | head -5 || echo "not in ldcache"
-        echo "=== oracle bequeath env wrapper (what env does OCI pass to oracle?) ==="
-        if mv {{ oracle_home }}/bin/oracle {{ oracle_home }}/bin/oracle.real 2>/dev/null; then
-          printf '#!/bin/bash\n{ echo ORACLE_HOME=$ORACLE_HOME; echo ORACLE_SID=$ORACLE_SID; echo ORACLE_BASE=$ORACLE_BASE; echo MALLOC_ARENA_MAX=$MALLOC_ARENA_MAX; echo LD_LIBRARY_PATH=$LD_LIBRARY_PATH; echo "=== FDs ==="; ls -la /proc/$$/fd 2>&1; echo "=== ENV ==="; env | sort; } > /tmp/ora_wrap.log 2>&1\nexec %s "$@"\n' '{{ oracle_home }}/bin/oracle.real' > {{ oracle_home }}/bin/oracle
-          chmod 755 {{ oracle_home }}/bin/oracle
-          rm -f /tmp/ora_wrap.log
-          echo 'exit' | {{ oracle_home }}/bin/sqlplus -s / as sysdba 2>&1 | head -3 || true
-          echo "--- wrapper log ---"
-          cat /tmp/ora_wrap.log 2>/dev/null || echo "(log not created: wrapper not called or write failed)"
-          mv {{ oracle_home }}/bin/oracle.real {{ oracle_home }}/bin/oracle
-          rm -f /tmp/ora_wrap.log
-        else
-          echo "could not rename oracle binary (in use or permission denied)"
-        fi
+        echo "=== sqlplus bequeath probe (should show ORA-01034/ORA-27101, NOT ORA-12547) ==="
+        echo 'exit' | {{ oracle_home }}/bin/sqlplus -s / as sysdba 2>&1 | head -5 || true
         echo "=== DBCA Logs ==="
         find {{ oracle_base }}/cfgtoollogs {{ oracle_home }}/cfgtoollogs /tmp /var/tmp -maxdepth 5 -type f -name "*.log" -mmin -10 -exec echo "--- {} ---" \; -exec tail -n 100 {} \; 2>/dev/null || true
         echo "=== Oracle trace files ==="
