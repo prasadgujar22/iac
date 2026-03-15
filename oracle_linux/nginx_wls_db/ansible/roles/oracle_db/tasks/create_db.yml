@@ -166,7 +166,6 @@
         -createDatabase
         -responseFile {{ installer_stage }}/dbca.rsp
         -ignorePrereqFailure
-        -forceCleanup
         -J-Djava.security.egd=file:///dev/urandom
         -sysPassword {{ oracle_sys_password }}
         -systemPassword {{ oracle_system_password }}
@@ -231,6 +230,7 @@
         ORACLE_SID: "{{ oracle_db_name }}"
         PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
         LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
+        MALLOC_ARENA_MAX: "1"
 
     - name: Display DBCA Diagnostics
       ansible.builtin.debug:

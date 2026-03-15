@@ -124,6 +124,22 @@
       export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
       export CLASSPATH=$ORACLE_HOME/jlib:$ORACLE_HOME/rdbms/jlib
       export NLS_DATE_FORMAT="DD-MON-YYYY HH24:MI:SS"
+      export MALLOC_ARENA_MAX=1
+
+# Oracle bequeath (local IPC) connections use /var/tmp/.oracle and /tmp/.oracle
+# for socket/lock files. root.sh normally creates these; since root.sh may be a
+# no-op in this environment, create them explicitly. Without them the oracle
+# server process crashes immediately on bequeath → ORA-12547 "TNS:lost contact".
+- name: Create Oracle IPC directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_group }}"
+    mode: "01777"
+  loop:
+    - /var/tmp/.oracle
+    - /tmp/.oracle
 
 - name: Open Oracle listener port in firewalld
   ansible.posix.firewalld:
