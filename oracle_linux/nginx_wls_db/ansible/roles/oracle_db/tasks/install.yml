@@ -162,12 +162,14 @@
   changed_when: "'fixed' in _bin_chmod.stdout"
   failed_when: false
 
-- name: Check if oracle binary is functional
-  ansible.builtin.shell: "{{ oracle_home }}/bin/oracle -help"
-  become: true
-  become_user: "{{ oracle_user }}"
-  environment:
-    ORACLE_HOME: "{{ oracle_home }}"
+# Oracle 19c ships bin/oracle as a 0-byte placeholder in the ZIP.  A shell
+# command like "oracle -help" always returns rc=0 on a 0-byte file because bash
+# falls back to treating a non-ELF executable as a shell script (empty → exits
+# 0).  execve() in bequeath mode has no such fallback: ENOEXEC closes the pipe
+# and OCI returns ORA-12547.  Use "file | grep ELF" to reliably distinguish a
+# real compiled binary from the unlinked placeholder.
+- name: Check if oracle binary is a linked ELF executable
+  ansible.builtin.shell: file "{{ oracle_home }}/bin/oracle" | grep -q "ELF"
   register: oracle_bin_check
   failed_when: false
   changed_when: false
@@ -178,12 +180,17 @@
     export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
     export PATH=$ORACLE_HOME/bin:$PATH
     cd $ORACLE_HOME/rdbms/lib
+    # Remove the target before make so GNU make cannot conclude "up to date"
+    # by comparing timestamps.  The Oracle 19c ZIP ships oracle at 0 bytes
+    # with the release-day timestamp; all .o prerequisites share that same
+    # timestamp, so make always skips relinking unless the target is absent.
+    rm -f "$ORACLE_HOME/bin/oracle"
     make -f ins_rdbms.mk ioracle
     cd $ORACLE_HOME/sqlplus/lib
     make -f ins_sqlplus.mk install
   become: true
   become_user: "{{ oracle_user }}"
-  when: not oracle_installed.stat.exists or oracle_bin_check.rc != 0 or 'Usage' not in (oracle_bin_check.stdout ~ oracle_bin_check.stderr)
+  when: not oracle_installed.stat.exists or oracle_bin_check.rc != 0
   register: relink_result
   changed_when: true
 

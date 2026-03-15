@@ -170,15 +170,18 @@
   become: true
   when: not oracle_spfile.stat.exists
 
-- name: Validate that Oracle binary is functional (catch silent OL9 crashes)
-  ansible.builtin.shell: "{{ oracle_home }}/bin/oracle -help"
-  become: true
-  become_user: "{{ oracle_user }}"
-  environment:
-    ORACLE_HOME: "{{ oracle_home }}"
+# "oracle -help" is not a reliable check: bash silently falls back to running
+# a 0-byte (unlinked) oracle as an empty shell script, which exits 0.  OCI's
+# bequeath execve() has no such fallback (returns ENOEXEC → ORA-12547).
+# Verify with "file | grep ELF" so a 0-byte placeholder is caught here and
+# not blamed on a bequeath/environment issue.
+- name: Validate that Oracle binary is a linked ELF executable
+  ansible.builtin.shell: |
+    out=$(file "{{ oracle_home }}/bin/oracle" 2>&1)
+    echo "$out"
+    echo "$out" | grep -q "ELF"
   register: oracle_bin_check
-  failed_when:
-    - oracle_bin_check.rc != 0
+  failed_when: oracle_bin_check.rc != 0
   changed_when: false
   when: not oracle_spfile.stat.exists
 
@@ -227,8 +230,9 @@
         echo "=== Container security (NoNewPrivs / Seccomp / nosuid) ==="
         grep -E "NoNewPriv|Seccomp" /proc/self/status 2>/dev/null || echo "not available"
         mount 2>/dev/null | grep -E "nosuid|noexec" | head -5 || true
-        echo "=== oracle binary mode ==="
+        echo "=== oracle binary mode and type ==="
         ls -la {{ oracle_home }}/bin/oracle
+        file {{ oracle_home }}/bin/oracle || true
         echo "=== /etc/oratab ==="
         cat /etc/oratab || true
         echo "=== /dev/shm ==="
