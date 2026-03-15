@@ -182,10 +182,11 @@
       /* stat_compat.c — provide stat/fstat/lstat for Oracle 19c on OL9/x86-64.
        * Oracle pre-compiled .a files (libserver19.a etc.) call stat/fstat/lstat
        * as direct external symbols; glibc 2.34+ libc_nonshared.a no longer ships
-       * them.  This file uses raw Linux inline syscalls so it has ZERO external
-       * symbol references and needs no libc in the Oracle link. */
+       * them.  Raw x86-64 syscalls mean ZERO link-time deps beyond libc.so.6
+       * (__errno_location), which the oracle binary already imports. */
       #include <sys/stat.h>
       #include <fcntl.h>
+      #include <errno.h>
       /* x86-64 Linux syscall numbers */
       #define SC_FSTAT       5
       #define SC_NEWFSTATAT  262
@@ -212,15 +213,38 @@
               : "rcx", "r11", "memory");
           return ret;
       }
+      /* POSIX wrappers: kernel returns -errno on error; convert to -1 + errno. */
       int stat(const char *p, struct stat *b)
-          { return (int)__newfstatat_sc(AT_FDCWD, p, b, 0); }
+      {
+          long r = __newfstatat_sc(AT_FDCWD, p, b, 0);
+          if (r < 0) { errno = (int)-r; return -1; }
+          return 0;
+      }
       int fstat(int f, struct stat *b)
-          { return (int)__fstat_sc(f, b); }
+      {
+          long r = __fstat_sc(f, b);
+          if (r < 0) { errno = (int)-r; return -1; }
+          return 0;
+      }
       int lstat(const char *p, struct stat *b)
-          { return (int)__newfstatat_sc(AT_FDCWD, p, b, AT_SYMLINK_NOFOLLOW); }
+      {
+          long r = __newfstatat_sc(AT_FDCWD, p, b, AT_SYMLINK_NOFOLLOW);
+          if (r < 0) { errno = (int)-r; return -1; }
+          return 0;
+      }
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: "0644"
+  register: stat_compat_src
+
+- name: Remove oracle binary to force relink when stat_compat.c changes
+  ansible.builtin.file:
+    path: "{{ oracle_home }}/bin/oracle"
+    state: absent
+  when: stat_compat_src.changed
+  become: true
+  become_user: "{{ oracle_user }}"
+  register: oracle_binary_removed
 
 - name: Compile stat/fstat compatibility object for Oracle 19c OL9 relinking
   # No 'creates:' — always recompile so a stale .o from a previous run is replaced.
@@ -257,7 +281,7 @@
       make -f ins_sqlplus.mk install
   become: true
   become_user: "{{ oracle_user }}"
-  when: not oracle_installed.stat.exists or oracle_bin_check.rc != 0
+  when: not oracle_installed.stat.exists or oracle_bin_check.rc != 0 or (oracle_binary_removed.changed | default(false))
   register: relink_result
   changed_when: true
 
