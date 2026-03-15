@@ -35,7 +35,8 @@ registerWithDirService=false
 dirServiceUserName=
 dirServicePassword=
 walletPassword=
-listeners={{ listener_name }}
+# listener configured separately by listener.yml after DB creation
+listeners=
 variablesFile=
 variables=
 initParams=sga_target={{ (oracle_memory_target_mb * 0.6) | int }}m,pga_aggregate_target={{ (oracle_memory_target_mb * 0.2) | int }}m,processes={{ oracle_processes }},db_name={{ oracle_db_name }},db_unique_name={{ oracle_db_unique_name }},db_block_size=8192,open_cursors=300,db_recovery_file_dest_size={{ oracle_fra_size_mb }}m,db_recovery_file_dest={{ oracle_fra_dir }}
