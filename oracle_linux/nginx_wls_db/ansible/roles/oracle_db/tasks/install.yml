@@ -176,6 +176,7 @@
 
 - name: Relink Oracle binaries for Oracle Linux 9 compatibility
   ansible.builtin.shell: |
+    set -e
     export ORACLE_HOME="{{ oracle_home }}"
     export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
     export PATH=$ORACLE_HOME/bin:$PATH
@@ -193,6 +194,11 @@
   when: not oracle_installed.stat.exists or oracle_bin_check.rc != 0
   register: relink_result
   changed_when: true
+
+- name: Show relink output (for diagnosis if subsequent steps fail)
+  ansible.builtin.debug:
+    msg: "{{ (relink_result.stdout_lines | default([])) + (relink_result.stderr_lines | default([])) }}"
+  when: relink_result is not skipped
 
 # Register oracle_home/lib with the system dynamic linker so the oracle server
 # process can find its shared libraries without LD_LIBRARY_PATH being set.
