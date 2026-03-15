@@ -29,6 +29,7 @@
       - libstdc++-devel
       - libXi
       - libXtst
+      - libxcrypt-compat
       - make
       - smartmontools
       - sysstat

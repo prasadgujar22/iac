@@ -149,8 +149,8 @@
     content: |
       db_name={{ oracle_db_name }}
       use_large_pages=FALSE
-      sga_target=128m
-      pga_aggregate_target=32m
+      sga_target=256m
+      pga_aggregate_target=64m
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: "0640"
@@ -229,6 +229,11 @@
         ls -la {{ oracle_home }}/dbs || true
         echo "=== Oracle binary ldd ==="
         ldd {{ oracle_home }}/bin/oracle 2>&1 | grep -i "not found" || echo "all libs found"
+        echo "=== libcrypt.so.1 (OL9 requires libxcrypt-compat) ==="
+        ls -la /usr/lib64/libcrypt.so.1 2>&1 || echo "MISSING: libcrypt.so.1 not found - install libxcrypt-compat"
+        rpm -q libxcrypt-compat 2>&1 || echo "libxcrypt-compat not installed"
+        echo "=== libclntsh transitive deps ==="
+        ldd {{ oracle_home }}/lib/libclntsh.so.19.1 2>&1 | grep -i "not found" || echo "all libclntsh deps found"
         echo "=== SELinux status ==="
         getenforce 2>/dev/null || echo "selinux not available"
         echo "=== dbs directory ==="
