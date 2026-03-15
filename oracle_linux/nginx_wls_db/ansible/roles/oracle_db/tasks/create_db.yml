@@ -279,6 +279,17 @@
         ldconfig -p 2>/dev/null | grep -E "libclntsh|libnnz" | head -5 || echo "not in ldcache"
         echo "=== sqlplus bequeath probe (should show ORA-01034/ORA-27101, NOT ORA-12547) ==="
         echo 'exit' | {{ oracle_home }}/bin/sqlplus -s / as sysdba 2>&1 | head -5 || true
+        echo "=== oracle_data_dir mount and contents ==="
+        df -h {{ oracle_data_dir }} 2>/dev/null || echo "oracle_data_dir df failed"
+        ls -la {{ oracle_data_dir }}/ 2>/dev/null || echo "oracle_data_dir not found or empty"
+        ls -la {{ oracle_data_dir }}/{{ oracle_db_name }}/ 2>/dev/null || echo "WLSDB subdir not found"
+        echo "=== oracle_fra_dir mount and contents ==="
+        df -h {{ oracle_fra_dir }} 2>/dev/null || echo "oracle_fra_dir df failed"
+        ls -la {{ oracle_fra_dir }}/ 2>/dev/null || echo "oracle_fra_dir not found or empty"
+        echo "=== rendered dbca.rsp datafile/destination settings ==="
+        grep -E "(datafile|Destination|Jar|template|createAs|numberOfPDB)" {{ installer_stage }}/dbca.rsp 2>/dev/null || echo "dbca.rsp not found"
+        echo "=== DBCA templates directory ==="
+        ls -la {{ oracle_home }}/assistants/dbca/templates/ 2>/dev/null | head -20 || echo "templates dir not found"
         echo "=== DBCA Logs ==="
         find {{ oracle_base }}/cfgtoollogs {{ oracle_home }}/cfgtoollogs /tmp /var/tmp -maxdepth 5 -type f -name "*.log" -mmin -10 -exec echo "--- {} ---" \; -exec tail -n 100 {} \; 2>/dev/null || true
         echo "=== Oracle trace files ==="
