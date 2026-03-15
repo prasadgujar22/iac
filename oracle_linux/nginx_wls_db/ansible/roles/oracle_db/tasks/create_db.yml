@@ -123,6 +123,8 @@
     rm -f /var/tmp/.oracle/*{{ oracle_db_name }}* 2>/dev/null || true
     rm -f /tmp/.oracle/*{{ oracle_db_name }}* 2>/dev/null || true
     mv -f {{ oracle_home }}/dbs/init.ora {{ oracle_home }}/dbs/init.ora.template 2>/dev/null || true
+    ipcs -m | grep oracle | awk '{print $2}' | xargs -r ipcrm -m 2>/dev/null || true
+    ipcs -s | grep oracle | awk '{print $2}' | xargs -r ipcrm -s 2>/dev/null || true
   when: not oracle_spfile.stat.exists
   changed_when: false
   failed_when: false
@@ -144,7 +146,11 @@
 - name: Create minimal init file so oracle can complete bequeath TNS handshake
   ansible.builtin.copy:
     dest: "{{ oracle_home }}/dbs/init{{ oracle_db_name }}.ora"
-    content: "db_name={{ oracle_db_name }}\n"
+    content: |
+      db_name={{ oracle_db_name }}
+      use_large_pages=FALSE
+      sga_target=128m
+      pga_aggregate_target=32m
     owner: "{{ oracle_user }}"
     group: "{{ oracle_group }}"
     mode: "0640"
@@ -229,6 +235,9 @@
         ls -la {{ oracle_home }}/dbs/ || true
         echo "=== sqlnet.ora ==="
         cat {{ oracle_home }}/network/admin/sqlnet.ora 2>/dev/null || echo "not found"
+        echo "=== SysV IPC (stale oracle segments cause ORA-12547) ==="
+        ipcs -m 2>&1 || true
+        ipcs -s 2>&1 || true
         echo "=== sqlplus bequeath probe (expect ORA-01078 if no instance) ==="
         echo 'exit' | {{ oracle_home }}/bin/sqlplus -s / as sysdba 2>&1 | head -5 || true
         echo "=== DBCA Logs ==="
@@ -243,6 +252,7 @@
       environment:
         ORACLE_HOME: "{{ oracle_home }}"
         ORACLE_SID: "{{ oracle_db_name }}"
+        ORACLE_BASE: "{{ oracle_base }}"
         PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
         LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
         MALLOC_ARENA_MAX: "1"
