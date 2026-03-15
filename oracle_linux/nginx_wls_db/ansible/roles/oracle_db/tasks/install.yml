@@ -204,12 +204,6 @@
     creates: "{{ oracle_home }}/rdbms/lib/stat_compat.o"
   changed_when: true
 
-- name: Patch ins_rdbms.mk ORACLE_LINKLINE to splice in stat_compat.o
-  ansible.builtin.replace:
-    path: "{{ oracle_home }}/rdbms/lib/ins_rdbms.mk"
-    regexp: '^(ORACLE_LINKLINE\s*=\s*)(.* -Wl,--no-as-needed)$'
-    replace: '\1\2 $(ORACLE_HOME)/rdbms/lib/stat_compat.o'
-
 # Oracle 19c ships bin/oracle as a 0-byte placeholder in the ZIP.  A shell
 # command like "oracle -help" always returns rc=0 on a 0-byte file because bash
 # falls back to treating a non-ELF executable as a shell script (empty → exits
@@ -228,6 +222,13 @@
     export ORACLE_HOME="{{ oracle_home }}"
     export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
     export PATH=$ORACLE_HOME/bin:$PATH
+    # Inject stat/fstat/lstat stubs into the first Oracle archive that references
+    # them.  GNU ld scans each archive's symbol-table index to decide which object
+    # modules to extract; ar -r rebuilds that index so the linker finds stat,
+    # fstat, and lstat when it processes libserver19.a, satisfying the undefined
+    # references from jskm.o, qmsqx.o (libserver19.a), eobtl.o (libjavavm19.a),
+    # and ccme_ck_rand_load_fileS1.o (libnnzst19.a) that follow in link order.
+    ar -r "$ORACLE_HOME/lib/libserver19.a" "$ORACLE_HOME/rdbms/lib/stat_compat.o"
     cd $ORACLE_HOME/rdbms/lib
     # Remove the target before make so GNU make cannot conclude "up to date"
     # by comparing timestamps.  The Oracle 19c ZIP ships oracle at 0 bytes
