@@ -225,6 +225,11 @@
       export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
       export PATH=$ORACLE_HOME/bin:$PATH
       ar -r $ORACLE_HOME/lib/libserver19.a $ORACLE_HOME/rdbms/lib/stat_compat.o
+      # orald calls /usr/bin/ld directly (not gcc), so libc.so.6 is never auto-included.
+      # fstatat (called by stat_compat.o) lives in libc.so.6; add -lc to sysliblist
+      # so the linker resolves it.
+      grep -qw -- '-lc' $ORACLE_HOME/lib/sysliblist || \
+          sed -i 's/^/-lc /' $ORACLE_HOME/lib/sysliblist
       cd $ORACLE_HOME/rdbms/lib
       rm -f $ORACLE_HOME/bin/oracle
       make -f ins_rdbms.mk ioracle
