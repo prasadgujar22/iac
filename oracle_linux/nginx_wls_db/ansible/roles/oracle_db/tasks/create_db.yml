@@ -122,6 +122,13 @@
     rm -rf "{{ oracle_base }}/diag/rdbms/{{ oracle_db_name | lower }}"
     rm -f /var/tmp/.oracle/*{{ oracle_db_name }}* 2>/dev/null || true
     rm -f /tmp/.oracle/*{{ oracle_db_name }}* 2>/dev/null || true
+    # Rename the generic init.ora template so oracle cannot pick it up during
+    # DBCA's bequeath pre-flight check.  With the template present oracle loads
+    # it (db_name=orcl, not WLSDB), hits an error mid-startup, and crashes
+    # (ORA-12547).  DBCA misclassifies that crash as DBT-05509.  Without any
+    # init file, oracle exits cleanly with ORA-01078 "no parameter file" which
+    # DBCA correctly treats as "DB not running → proceed with creation".
+    mv -f "{{ oracle_home }}/dbs/init.ora" "{{ oracle_home }}/dbs/init.ora.template" 2>/dev/null || true
   when: not oracle_spfile.stat.exists
   changed_when: false
   failed_when: false
@@ -184,6 +191,10 @@
         PATH: "{{ oracle_home }}/bin:{{ ansible_facts['env']['PATH'] }}"
         LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
         CV_ASSUME_DISTID: "OEL8.5"
+        # glibc 2.34+ (OL9) default multi-arena malloc causes oracle server
+        # processes forked via bequeath to crash (SIGSEGV/SIGABRT), returning
+        # ORA-12547 to the caller.  Single-arena mode avoids the crash.
+        MALLOC_ARENA_MAX: "1"
       register: dbca_result
       failed_when:
         - dbca_result.rc != 0
@@ -227,6 +238,13 @@
     - name: Fail the playbook
       ansible.builtin.fail:
         msg: "DBCA Failed. See logs above for the underlying ORA- error."
+
+- name: Restore generic init.ora template (renamed before DBCA to prevent pre-flight confusion)
+  ansible.builtin.shell: >
+    mv -f "{{ oracle_home }}/dbs/init.ora.template"
+           "{{ oracle_home }}/dbs/init.ora" 2>/dev/null || true
+  changed_when: false
+  failed_when: false
 
 - name: Enable Oracle DB autostart on boot
   ansible.builtin.lineinfile:
