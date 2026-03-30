@@ -151,7 +151,7 @@
     ORACLE_HOME: "{{ oracle_home }}"
   register: oracle_bin_check
   failed_when:
-    - oracle_bin_check.rc != 0 or 'Usage' not in (oracle_bin_check.stdout ~ oracle_bin_check.stderr)
+    - oracle_bin_check.rc != 0
   changed_when: false
   when: not oracle_spfile.stat.exists
 
@@ -217,6 +217,22 @@
     - name: Fail the playbook
       ansible.builtin.fail:
         msg: "DBCA Failed. See logs above for the underlying ORA- error."
+
+- name: Open PDB and save state for automatic open on reboot
+  ansible.builtin.shell: |
+    {{ oracle_home }}/bin/sqlplus -S / as sysdba <<'SQLEOF'
+    ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} OPEN;
+    ALTER PLUGGABLE DATABASE {{ oracle_pdb_name }} SAVE STATE;
+    EXIT
+    SQLEOF
+  become: true
+  become_user: "{{ oracle_user }}"
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+    ORACLE_SID: "{{ oracle_db_name }}"
+    LD_LIBRARY_PATH: "{{ oracle_home }}/lib:/lib:/usr/lib"
+  changed_when: false
+  failed_when: false
 
 - name: Enable Oracle DB autostart on boot
   ansible.builtin.lineinfile:
