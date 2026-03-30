@@ -11,8 +11,8 @@ Environment="ORACLE_HOME={{ oracle_home }}"
 Environment="ORACLE_BASE={{ oracle_base }}"
 Environment="ORACLE_SID={{ oracle_db_name }}"
 Environment="PATH={{ oracle_home }}/bin:/usr/bin:/bin"
-ExecStart={{ oracle_home }}/bin/dbstart {{ oracle_home }}
-ExecStop={{ oracle_home }}/bin/dbshut {{ oracle_home }}
+ExecStart=/bin/bash -c "{{ oracle_home }}/bin/dbstart {{ oracle_home }}"
+ExecStop=/bin/bash -c "{{ oracle_home }}/bin/dbshut {{ oracle_home }}"
 TimeoutStartSec=600
 TimeoutStopSec=300
 RemainAfterExit=yes
