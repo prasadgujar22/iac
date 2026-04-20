@@ -1,5 +1,5 @@
 resource "proxmox_vm_qemu" "alma_nodes" {
-  count       = 2
+  count       = 3
   name        = "worker-${count.index + 1}"
   target_node = "praslab"
   clone       = "almalinux-9-gold-template"
