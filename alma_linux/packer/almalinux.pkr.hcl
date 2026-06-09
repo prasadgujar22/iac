@@ -84,11 +84,6 @@ boot_command = [
 }
 
 build {
-  provisioner "shell-local" {
-    inline = [
-      "ssh root@your-proxmox-ip 'qm destroy 9000 || true'"
-    ]
-  }
   sources = ["source.proxmox-iso.almalinux"]
 
   # This runs inside the VM via SSH
