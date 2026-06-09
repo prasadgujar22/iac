@@ -71,7 +71,7 @@ source "proxmox-iso" "almalinux" {
   # SSH Credentials (must match ks.cfg)
   ssh_username = "packer"
   ssh_password = "packer"
-  ssh_timeout  = "20m"
+  ssh_timeout  = "45m"
 
   # Boot Command for AlmaLinux 9
  # boot_command = [
