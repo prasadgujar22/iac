@@ -63,7 +63,7 @@ source "proxmox-iso" "almalinux" {
   # Modern Boot ISO block
   boot_iso {
     type         = "ide"
-    iso_file     = "local:iso/AlmaLinux-9.7-x86_64-dvd.iso"
+    iso_file     = "local:iso/AlmaLinux-9.8-x86_64-dvd.iso"
     unmount      = true
     index        = 2
   }
