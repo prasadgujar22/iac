@@ -41,9 +41,7 @@ resource "proxmox_vm_qemu" "alma_nodes" {
   nameserver = "8.8.8.8"
 
   # Inject your public SSH key for passwordless login
-  sshkeys = <<EOF
-  ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDcAroQ4TQF8fBvg0eQCupIwfpByNFqpykPFgl1j+t6dKrP2NKjAvsZZnvlk0Nr0eyMqAwCc5ljz94ueBCSHktLFKtrP0jIC41Liv7D9XYwpCPZ7SvubDvXKcytA1rD1AFT1bDNOJPowvZK9mLy1AEo8Ey7Kl9y11o+no0yrhW6IM+/nnQkdUOFgskCX22xD81S++v8me9PGs+mREQgL7mrWCFpqvTP3kd9zRxI37Ifd9j1/T569Vxebvay92e5WCyCeuypO8jT1HVt768Euu5R7ZncjYfq0rr3Rk5jxdgeGfD1ehjcAiDLmTvR4egiLjHX5KzTBe3IMbsT5E0zuiqklyf+z+Su0mTgxIyEjTrZiMUeWWeelP26ihABCyZIMsSPeB9G29myvaUdxSslxeRIT0gjVD0uLpg6TF1buRyN5H2U8iJ/yVJ2KFOBW6GibTrDNcqMozIN7CjTsc7RmJUb2e1ciUAGAc7UfDyVRkkc+tp4YAx4riwA30rFcvcT968= prasad@pg-mac.local
-  EOF
+  sshkeys = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com"
 
 # Force the VM to boot from the SCSI 0 drive (your main OS disk)
   boot = "order=scsi0" 
@@ -111,9 +109,7 @@ resource "proxmox_vm_qemu" "master_node" {
   nameserver = "8.8.8.8"
 
   # Inject your public SSH key for passwordless login
-  sshkeys = <<EOF
-  ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDcAroQ4TQF8fBvg0eQCupIwfpByNFqpykPFgl1j+t6dKrP2NKjAvsZZnvlk0Nr0eyMqAwCc5ljz94ueBCSHktLFKtrP0jIC41Liv7D9XYwpCPZ7SvubDvXKcytA1rD1AFT1bDNOJPowvZK9mLy1AEo8Ey7Kl9y11o+no0yrhW6IM+/nnQkdUOFgskCX22xD81S++v8me9PGs+mREQgL7mrWCFpqvTP3kd9zRxI37Ifd9j1/T569Vxebvay92e5WCyCeuypO8jT1HVt768Euu5R7ZncjYfq0rr3Rk5jxdgeGfD1ehjcAiDLmTvR4egiLjHX5KzTBe3IMbsT5E0zuiqklyf+z+Su0mTgxIyEjTrZiMUeWWeelP26ihABCyZIMsSPeB9G29myvaUdxSslxeRIT0gjVD0uLpg6TF1buRyN5H2U8iJ/yVJ2KFOBW6GibTrDNcqMozIN7CjTsc7RmJUb2e1ciUAGAc7UfDyVRkkc+tp4YAx4riwA30rFcvcT968= prasad@pg-mac.local
-  EOF
+  sshkeys = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBOo6Nuljv73LmCreszZUi2Da8ishoisgQcoEdk8yVg prasad.gujar@me.com"
 
 # Force the VM to boot from the SCSI 0 drive (your main OS disk)
   boot = "order=scsi0"
